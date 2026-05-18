@@ -1,0 +1,27 @@
+server: mcp_server_semantic.py
+
+tasks:
+  - id: customers_by_country
+    prompt: "Find me all customers from Germany"
+    expect:
+      tools_called_includes: [customers_by_country]
+      max_calls: 1
+
+  - id: orders_by_shipper
+    prompt: "Find me orders for customer ALFKI shipped via express courier"
+    expect:
+      tools_called_includes: [shippers, orders]
+      max_calls: 3
+      answer_includes: "Speedy Express"
+
+  - id: overdue_orders
+    prompt: "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?"
+    expect:
+      tools_called_includes: [orders]
+      max_calls: 2
+
+  - id: top_employee
+    prompt: "Who is our top performing employee by number of orders handled?"
+    expect:
+      tools_called_includes: [employees, orders]
+      max_calls: 5

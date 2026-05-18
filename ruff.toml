@@ -1,0 +1,5 @@
+line-length = 100
+
+[format]
+skip-magic-trailing-comma = false
+indent-style = "space"

@@ -10,12 +10,17 @@ from probe.scorer import score_task
 @click.command()
 @click.argument("tasks_file")
 @click.option("--server", default=None, help="Override the server from the task file")
-def eval(tasks_file: str, server: str):
+@click.option("--ignore-tool-names", is_flag=True, default=False, help="Skip tool name checks")
+def eval(tasks_file: str, server: str, ignore_tool_names: bool):
     """Run an eval suite against an MCP server."""
     suite = load_tasks(tasks_file)
 
     if server:
         suite["server"] = server
+
+    if ignore_tool_names:
+        for task in suite["tasks"]:
+            task["expect"].pop("tools_called_includes", None)
 
     results = asyncio.run(run_suite(suite))
 
@@ -36,5 +41,6 @@ def eval(tasks_file: str, server: str):
         print(f"      answer: {r['answer'][:80]}...")
         print()
 
+
 if __name__ == "__main__":
-        eval()
+    eval()

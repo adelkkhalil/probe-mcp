@@ -29,9 +29,19 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
     trace = []
 
     while True:
-        response = client.messages.create(
-            model="claude-haiku-4-5", max_tokens=1000, tools=tools, messages=messages
-        )
+        try:
+            response = client.messages.create(
+                model="claude-haiku-4-5",
+                max_tokens=1000,
+                tools=tools,
+                messages=messages
+            )
+        except Exception as e:
+            return {
+                "trace": trace,
+                "answer": f"ERROR: {str(e)[:200]}",
+                "error": True,
+            }
 
         if response.stop_reason == "end_turn":
             break

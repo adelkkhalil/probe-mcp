@@ -7,6 +7,16 @@ def score_task(result: dict) -> dict:
     passed = []
     failed = []
 
+    if answer.startswith("ERROR:"):
+            return {
+                "id": result["id"],
+                "status": "FAIL",
+                "passed": [],
+                "failed": ["task errored — " + answer[:100]],
+                "call_count": len(trace),
+                "answer": answer,
+            }
+
     tools_called = [t["tool"] for t in trace]
 
     if "tools_called_includes" in expect:

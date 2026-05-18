@@ -16,3 +16,9 @@ dependencies = [
 dev = [
     "black>=26.5.1",
 ]
+
+[project.scripts]
+probe-mcp = "probe.cli:eval"
+
+[tool.setuptools.packages.find]
+include = ["probe*"]

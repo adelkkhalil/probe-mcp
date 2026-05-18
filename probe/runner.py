@@ -39,29 +39,39 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
         if response.stop_reason != "tool_use":
             break
 
-        tool_calls = [block for block in response.content if block.type == "tool_use"]
+        tool_calls = [
+                    block for block in response.content
+                    if block.type == "tool_use"
+                ]
 
+        # append assistant message once, outside the loop
+        messages.append({
+            "role": "assistant",
+            "content": response.content,
+        })
+
+        # collect all tool results
+        tool_results = []
         for tool_call in tool_calls:
             trace.append({
-                    "tool": tool_call.name,
-                    "params": tool_call.input,
+                "tool": tool_call.name,
+                "params": tool_call.input,
+            })
+            result = await session.call_tool(
+                tool_call.name,
+                tool_call.input,
+            )
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": tool_call.id,
+                "content": str(result.content),
             })
 
-            result = await session.call_tool(tool_call.name, tool_call.input)
-
-            messages.append({
-                    "role": "assistant",
-                    "content": response.content,
-            })
-
-            messages.append({
-                    "role": "user",
-                    "content": [{
-                            "type": "tool_result",
-                            "tool_use_id": tool_call.id,
-                            "content": str(result.content),
-                        }],
-            })
+        # append all tool results in one user message
+        messages.append({
+            "role": "user",
+            "content": tool_results,
+        })
 
     final_answer = next(
             (block.text for block in response.content if hasattr(block, "text")),

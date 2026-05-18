@@ -56,6 +56,9 @@ def get_products(category_id=None):
 def get_shippers():
     return _query("SELECT * FROM Shippers")
 
-
 def get_employees():
-    return _query("SELECT * FROM Employees")
+    return _query(
+        "SELECT EmployeeID, LastName, FirstName, Title, TitleOfCourtesy, "
+        "BirthDate, HireDate, Address, City, Region, PostalCode, Country, "
+        "HomePhone, Extension, Notes, ReportsTo FROM Employees"
+    )

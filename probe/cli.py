@@ -35,10 +35,26 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool):
         icon = "✓" if r["status"] == "PASS" else "✗"
         print(f"  {icon} {r['id']} ({r['call_count']} calls)")
         for msg in r["failed"]:
-            print(f"      FAIL: {msg}")
+            if not r['answer'].startswith("ERROR:"):
+                print(f"      FAIL: {msg}")
         for msg in r["passed"]:
             print(f"      pass: {msg}")
-        print(f"      answer: {r['answer'][:80]}...")
+        answer = r["answer"]
+        if answer.startswith("ERROR:"):
+            import re
+
+            match = re.search(r"'message': '([^']+)'", answer)
+            if match:
+                print(f"      error: {match.group(1)[:120]}")
+            else:
+                print(f"      error: {answer[7:127]}")
+        else:
+            truncated = answer[:80]
+            if len(answer) > 80:
+                last_space = truncated.rfind(" ")
+                if last_space > 40:
+                    truncated = truncated[:last_space]
+            print(f"      answer: {truncated}...")
         print()
 
 

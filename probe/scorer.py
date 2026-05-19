@@ -8,14 +8,18 @@ def score_task(result: dict) -> dict:
     failed = []
 
     if answer.startswith("ERROR:"):
-            return {
-                "id": result["id"],
-                "status": "FAIL",
-                "passed": [],
-                "failed": ["task errored — " + answer[:100]],
-                "call_count": len(trace),
-                "answer": answer,
-            }
+        import re
+
+        match = re.search(r"'message': '([^']+)'", answer)
+        error_msg = match.group(1)[:100] if match else answer[7:107]
+        return {
+            "id": result["id"],
+            "status": "FAIL",
+            "passed": [],
+            "failed": [f"task errored: {error_msg}"],
+            "call_count": len(trace),
+            "answer": answer,
+        }
 
     tools_called = [t["tool"] for t in trace]
 

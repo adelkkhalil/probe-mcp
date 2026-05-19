@@ -44,7 +44,6 @@ def score_task(result: dict) -> dict:
             failed.append(f"answer missing '{expect['answer_includes']}'")
 
     status = "PASS" if len(failed) == 0 else "FAIL"
-
     return {
         "id": result["id"],
         "status": status,

@@ -21,10 +21,10 @@ async def get_tools(session: ClientSession) -> list:
 
 
 async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
-    """Run a single task against MCP server and return the trace"""
+    """Run a single task against MCP server and return the trace."""
     messages = [{
         "role": "user",
-        "content": task["prompt"]
+        "content": task["prompt"],
     }]
     trace = []
 
@@ -34,7 +34,7 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
                 model="claude-haiku-4-5",
                 max_tokens=1000,
                 tools=tools,
-                messages=messages
+                messages=messages,
             )
         except Exception as e:
             return {
@@ -50,43 +50,40 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
             break
 
         tool_calls = [
-                    block for block in response.content
-                    if block.type == "tool_use"
-                ]
+            block for block in response.content
+            if block.type == "tool_use"
+        ]
 
-        # append assistant message once, outside the loop
         messages.append({
             "role": "assistant",
             "content": response.content,
         })
 
-        # collect all tool results
         tool_results = []
         for tool_call in tool_calls:
-            trace.append({
-                "tool": tool_call.name,
-                "params": tool_call.input,
-            })
             result = await session.call_tool(
                 tool_call.name,
                 tool_call.input,
             )
+            trace.append({
+                "tool": tool_call.name,
+                "params": tool_call.input,
+            })
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": tool_call.id,
                 "content": str(result.content),
             })
 
-        # append all tool results in one user message
         messages.append({
             "role": "user",
             "content": tool_results,
         })
 
     final_answer = next(
-            (block.text for block in response.content if hasattr(block, "text")),
-            ""
-        )
+        (block.text for block in response.content if hasattr(block, "text")),
+        ""
+    )
 
     return {"trace": trace, "answer": final_answer}
 

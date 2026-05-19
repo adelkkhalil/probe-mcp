@@ -81,8 +81,8 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str):
 
         for r1 in scored:
             r2 = scored2_by_id.get(r1["id"])
-            s1 = f"PASS ({r1['call_count']} calls)" if r1["status"] == "PASS" else "FAIL"
-            s2 = f"PASS ({r2['call_count']} calls)" if r2 and r2["status"] == "PASS" else "FAIL"
+            s1 = f"PASS ({r1['call_count']} calls)" if r1["status"] == "PASS" else f"{r1['status']} ({r1['call_count']} calls)"
+            s2 = f"PASS ({r2['call_count']} calls)" if r2 and r2["status"] == "PASS" else f"{r2['status']} ({r2['call_count']} calls)" if r2 else "FAIL"
             print(f"{r1['id']:<{task_col}}  {s1:<{col1}}  {s2:<{col2}}")
 
         passed2 = sum(1 for r in scored2 if r["status"] == "PASS")

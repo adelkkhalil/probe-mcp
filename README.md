@@ -1,22 +1,36 @@
 # probe-mcp
 
-Test whether your MCP server actually works.
-
-Most teams building AI agents expose their existing APIs via MCP and assume the agent will figure out the rest. This repo demonstrates why that assumption is wrong, and what to do about it.
+An eval harness for MCP servers. Runs a set of natural language tasks against any MCP server, captures the tool call trace, and scores the results against defined expectations.
 
 ---
 
-## What this is
+## The problem
 
-probe-mcp is an eval harness for MCP servers. Point it at your MCP server, give it a set of natural language tasks, and measure whether an agent can complete them correctly.
+When you wrap an existing API as an MCP server, the agent's behavior depends heavily on the quality of the tool definitions, not just the underlying API. Vague descriptions, opaque field names, encoded values, and missing workflow hints all cause agents to fail silently, guess wrong, or crash with context window errors.
 
-This repo contains the testbed that motivated the tool: two MCP servers built on top of the classic Northwind commerce database, one raw and one with a semantic layer, with four agent tasks run against both and an automated eval runner that scores the results.
+There is currently no automated way to measure this. You either run tasks manually in Claude Desktop and observe what happens, or you ship and find out in production.
+
+probe-mcp gives you a test suite for your MCP server.
+
+---
+
+## Use cases
+
+**Before shipping.** Write a set of realistic tasks that represent how agents will use your MCP server. Run them. Find failures before users do.
+
+**After changing tool definitions.** If you improve a docstring, add an enum, or rename a parameter, run the eval again. Confirm the change helped and did not break anything else.
+
+**Comparing raw vs semantic.** Build a naive MCP wrapper and a well-described one. Run the same tasks against both. Measure the difference in pass rate and call efficiency.
+
+**Catching model drift.** A tool definition that worked well with one model version may behave differently after a model update. Run the eval on a schedule to detect regressions.
+
+**Code review for MCP servers.** Use the eval output as evidence in pull requests. A description change that improves pass rate from 2/4 to 4/4 is self-documenting.
 
 ---
 
 ## Architecture
 
-The key insight: the underlying API never changes. The semantic layer sits in front of it and makes the difference.
+The underlying API never changes. The semantic layer sits in front of it.
 
 <table width="100%"><tr><td>
 
@@ -28,7 +42,7 @@ The key insight: the underlying API never changes. The semantic layer sits in fr
                      ▼
 ┌─────────────────────────────────────────────────┐
 │                  AI agent                       │
-│     Claude, GPT-4o — reasons over tools         │
+│     any LLM with tool use support               │
 └──────────┬──────────────────────────┬───────────┘
            │ MCP tool calls           │ MCP tool calls
            ▼                          ▼
@@ -43,85 +57,41 @@ The key insight: the underlying API never changes. The semantic layer sits in fr
                       ▼
 ┌─────────────────────────────────────────────────┐
 │               northwind_api.py                  │
-│   untouchable legacy API — plain Python,        │
+│   untouchable legacy API, plain Python,         │
 │   no MCP decorators, no changes                 │
 └─────────────────────────────────────────────────┘
 ```
 
 </td></tr></table>
 
-Four files:
+This repo ships four files as a working testbed:
 
 - `northwind_api.py` — the untouchable legacy API, plain Python functions, no MCP decorators
-- `mcp_server_raw.py` — naive 1:1 MCP wrap, minimal descriptions, what you get from any OpenAPI-to-MCP generator
+- `mcp_server_raw.py` — naive 1:1 MCP wrap, minimal descriptions, representative of auto-generated wrappers
 - `mcp_server_semantic.py` — semantic layer on top of the same API, rich descriptions, row limits, composite tools, actionable errors
-- `tasks/northwind.yaml` — the eval task suite, four realistic agent tasks with expectations
+- `tasks/northwind.yaml` — four realistic agent tasks with expectations
 
 ---
 
-## The experiment
+## How the runner works
 
-Four realistic agent tasks, run against both servers using Claude Haiku 4.5. Same database, same underlying queries, different tool definitions.
-
-### Raw vs semantic — the difference one docstring makes
-
-| | Raw server | Semantic server |
-|---|---|---|
-| **Tool name** | `raw_get_orders` | `orders` |
-| **Description** | `"Get orders."` | Full context: when to use it, what each param means, ShipVia enum values, NULL semantics, currency |
-| **ship_via param** | `int = None` — no explanation | `int = None` — documented as `1=Speedy Express, 2=United Package, 3=Federal Shipping. Call shippers() first.` |
-| **limit param** | absent — returns unbounded results | `int = 50` — prevents 1MB crashes |
-| **Agent behavior** | Fetched 126 rows, guessed shipper from training knowledge | Called `shippers()` first, used correct filter, database did the work |
-
-One instruction in a docstring changed the entire behavior. The underlying function did not change.
-
-### Results
-
-| Task | Raw server | Semantic server | Key difference |
-|------|-----------|-----------------|----------------|
-| Customers by country | pass | pass | Baseline — both handle simple lookups |
-| Orders by shipper name | partial fail | pass | Semantic called `shippers()` first. Raw guessed from training knowledge. |
-| Overdue orders | fail | pass | Raw hit 1MB context limit and crashed. Semantic used limit parameter. |
-| Top employee by orders | fail | pass | Raw hit 1MB context limit and crashed. Semantic got a partial answer. |
-
-Raw server: 2/4. Semantic server: 4/4. The only difference was the tool definitions.
-
-Full observations, failure patterns, and root causes are in [eval_log.md](eval_log.md).
-
----
-
-## What actually makes the difference
-
-None of this required changing the underlying API. Everything that improved agent behavior lived in the tool definitions. Six things matter:
-
-1. **Field naming** — `ShipVia` means nothing to an agent. "Filter by shipper company ID" does.
-2. **Enum translation** — an integer with values 1, 2, 3 is a dead end. Documented enums are a lookup table the agent can reason over.
-3. **Composite operations** — wrapping multi-step operations into a single intent-shaped tool prevents sequencing errors.
-4. **Shaped responses** — agents need only what is actionable. Trimming output reduces noise and misreasoning.
-5. **Actionable errors** — "ERR_4471" tells an agent nothing. A plain English explanation with next steps does.
-6. **Workflow notes** — which tools should be called first, what the typical sequence is.
-
----
-
-## The eval runner
-
-probe-mcp ships with an automated eval CLI. It spawns your MCP server as a real subprocess, communicates over the MCP protocol exactly as Claude Desktop does, runs each task through Claude autonomously, and scores the results.
-
-### How it works
+probe-mcp spawns your MCP server as a subprocess and communicates with it over stdio, the same transport Claude Desktop uses. It then runs each task through a real LLM call with the server's tools attached. Claude decides autonomously which tools to call and when. The runner captures the full trace and scores it against your expectations.
 
 ```
 probe/
-  loader.py   — reads task YAML files
-  runner.py   — spawns MCP server, runs Claude, captures trace
-  scorer.py   — scores trace against expectations
-  cli.py      — the probe-mcp command
+  loader.py   reads task YAML files
+  runner.py   spawns MCP server over stdio, runs LLM, captures trace
+  scorer.py   scores trace against expectations
+  cli.py      the probe-mcp command
 ```
 
-The runner uses the real MCP stdio transport — the same protocol Claude Desktop uses. No mocking, no shortcuts. Claude decides autonomously which tools to call and when.
+No mocking. No shortcuts. The eval reflects real agent behavior against a real MCP server.
 
-### Setup
+---
 
-**Requirements:** Python 3.12+, uv, an Anthropic API key
+## Setup
+
+**Requirements:** Python 3.12+, uv, an API key for any LLM with tool use support
 
 ```bash
 git clone https://github.com/adelkkhalil/probe-mcp
@@ -129,20 +99,31 @@ cd probe-mcp
 uv sync
 ```
 
-Add to your `~/.zshrc`:
+Set your API key. The runner currently uses the Anthropic SDK but the architecture supports any provider. Add to your shell profile or set it in your terminal session:
 
 ```bash
-alias probe-mcp="uv run --directory /path/to/probe-mcp python -m probe.cli"
 export ANTHROPIC_API_KEY="your-key-here"
 ```
 
-Reload:
+Add an alias for convenience. The exact syntax depends on your shell:
 
 ```bash
-source ~/.zshrc
+# bash or zsh
+alias probe-mcp="uv run --directory /path/to/probe-mcp python -m probe.cli"
+
+# fish
+alias probe-mcp="uv run --directory /path/to/probe-mcp python -m probe.cli"
 ```
 
-### Run the eval
+Or run it directly without an alias:
+
+```bash
+uv run --directory /path/to/probe-mcp python -m probe.cli tasks/northwind.yaml
+```
+
+---
+
+## Running the eval
 
 Against the semantic server:
 
@@ -178,7 +159,7 @@ Results: 4/4 passed
       pass: call count 2 within limit 5
 ```
 
-Against the raw server:
+Against the raw server, skipping tool name checks since the raw server uses different names:
 
 ```bash
 probe-mcp tasks/northwind.yaml --server mcp_server_raw.py --ignore-tool-names
@@ -190,14 +171,50 @@ Results: 2/4 passed
   ✓ customers_by_country (1 calls)
   ✓ orders_by_shipper (2 calls)
   ✗ overdue_orders (1 calls)
-      FAIL: task errored — prompt too long: 215718 tokens > 200000 maximum
+      FAIL: task errored, prompt too long: 215718 tokens > 200000 maximum
   ✗ top_employee (2 calls)
-      FAIL: task errored — prompt too long: 215718 tokens > 200000 maximum
+      FAIL: task errored, prompt too long: 215718 tokens > 200000 maximum
 ```
 
-Same tasks. Same scorer. Same Claude model. Different tool definitions.
+Same tasks, same scorer, same model, different tool definitions.
 
-### Connect to Claude Desktop
+---
+
+## Writing your own tasks
+
+Task files are YAML. Each task has a prompt and a set of expectations:
+
+```yaml
+server: mcp_server_semantic.py
+
+tasks:
+  - id: find_orders
+    prompt: "Find orders for customer ALFKI shipped via express courier"
+    expect:
+      tools_called_includes: [shippers, orders]
+      max_calls: 3
+      answer_includes: "Speedy Express"
+```
+
+Available expectations:
+
+- `tools_called_includes` — list of tool names that must appear in the trace
+- `max_calls` — maximum number of tool calls allowed (catches inefficient behavior)
+- `answer_includes` — string that must appear in the final answer
+
+---
+
+## CLI options
+
+```bash
+probe-mcp tasks/northwind.yaml                          # run against server in task file
+probe-mcp tasks/northwind.yaml --server other.py        # override the server
+probe-mcp tasks/northwind.yaml --ignore-tool-names      # skip tool name checks
+```
+
+---
+
+## Connect to Claude Desktop
 
 To explore the servers interactively, add them to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -216,36 +233,15 @@ To explore the servers interactively, add them to `~/Library/Application Support
 }
 ```
 
-### Write your own tasks
-
-Task files are YAML. Each task has a prompt and a set of expectations:
-
-```yaml
-server: mcp_server_semantic.py
-
-tasks:
-  - id: find_orders
-    prompt: "Find orders for customer ALFKI shipped via express courier"
-    expect:
-      tools_called_includes: [shippers, orders]
-      max_calls: 3
-      answer_includes: "Speedy Express"
-```
-
-Expectations:
-
-- `tools_called_includes` — tool names that must appear in the trace
-- `max_calls` — maximum number of tool calls (efficiency check)
-- `answer_includes` — string that must appear in Claude's final answer
-
 ---
 
 ## What is coming next
 
-- LLM judge scorer — second Claude call to evaluate answer quality, not just structure
-- SQL injection detection — flag MCP servers with unsafe parameter handling
-- More task examples — richer scenarios beyond the Northwind baseline
-- Support for external APIs via pre-built adapters
+- LLM judge scorer: a second model call to evaluate answer quality beyond structural checks
+- SQL injection detection: flag MCP servers with unsafe parameter handling
+- Multi-model support: run the same tasks against different LLMs and compare
+- More task examples: richer scenarios beyond the Northwind baseline
+- Pre-built adapters for third-party APIs
 
 ---
 

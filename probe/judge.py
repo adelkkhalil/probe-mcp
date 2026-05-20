@@ -5,8 +5,10 @@ from datetime import datetime
 from pathlib import Path
 
 from anthropic import Anthropic
+from rich.console import Console
 
 _client = Anthropic()
+_console = Console()
 
 REQUIRED_PLACEHOLDERS = ["{task_prompt}", "{tool_trace}", "{answer}"]
 REQUIRED_OUTPUT_FIELDS = ['"verdict"', '"reason"']
@@ -89,7 +91,7 @@ async def judge_results_file(results_path: str, judge_model: str, judge_dir: str
             judge_model=judge_model,
         )
         verdicts.append(verdict)
-        print(f"Judged: {result['id']} → {verdict['verdict']}")
+        _console.print(f"[dim]Judged: {result['id']}[/dim] → {verdict['verdict']}")
 
     Path(judge_dir).mkdir(parents=True, exist_ok=True)
     results_stem = Path(results_path).stem

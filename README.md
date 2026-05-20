@@ -64,7 +64,7 @@ The underlying API never changes. The semantic layer sits in front of it.
 
 </td></tr></table>
 
-This repo ships four files as a working testbed:
+This repo ships a working testbed built on the classic Northwind commerce database:
 
 - `northwind_api.py` — the untouchable legacy API, plain Python functions, no MCP decorators
 - `mcp_server_raw.py` — naive 1:1 MCP wrap, minimal descriptions, representative of auto-generated wrappers
@@ -73,16 +73,19 @@ This repo ships four files as a working testbed:
 
 ---
 
-## How the runner works
+## How it works
 
-probe-mcp spawns your MCP server as a subprocess and communicates with it over stdio, the same transport Claude Desktop uses. It then runs each task through a real LLM call with the server's tools attached. Claude decides autonomously which tools to call and when. The runner captures the full trace and scores it against your expectations.
+probe-mcp spawns your MCP server as a subprocess and communicates with it over stdio, the same transport Claude Desktop uses. It then runs each task through a real LLM call with the server's tools attached. The LLM decides autonomously which tools to call and when. The runner captures the full trace and scores it against your expectations.
 
 ```
 probe/
-  loader.py   reads task YAML files
-  runner.py   spawns MCP server over stdio, runs LLM, captures trace
-  scorer.py   scores trace against expectations
-  cli.py      the probe-mcp command
+  config.py     reads probe.yaml, resolves model names
+  loader.py     reads task YAML files
+  runner.py     spawns MCP server over stdio, runs LLM, captures trace
+  scorer.py     scores trace against expectations
+  reporter.py   formats and prints results using Rich
+  judge.py      evaluates saved results using a second LLM call
+  cli.py        the probe-mcp commands
 ```
 
 No mocking. No shortcuts. The eval reflects real agent behavior against a real MCP server.
@@ -91,7 +94,7 @@ No mocking. No shortcuts. The eval reflects real agent behavior against a real M
 
 ## Setup
 
-**Requirements:** Python 3.12+, uv, an API key for any LLM with tool use support
+**Requirements:** Python 3.12+, uv, an Anthropic API key
 
 ```bash
 git clone https://github.com/adelkkhalil/probe-mcp
@@ -99,88 +102,140 @@ cd probe-mcp
 uv sync
 ```
 
-Set your API key. The runner currently uses the Anthropic SDK but the architecture supports any provider. Add to your shell profile or set it in your terminal session:
+Set your API key:
 
 ```bash
 export ANTHROPIC_API_KEY="your-key-here"
 ```
 
-Add an alias for convenience. The exact syntax depends on your shell:
+Add an alias to your shell profile:
 
 ```bash
-# bash or zsh
-alias probe-mcp="uv run --directory /path/to/probe-mcp python -m probe.cli"
-
-# fish
 alias probe-mcp="uv run --directory /path/to/probe-mcp python -m probe.cli"
 ```
 
-Or run it directly without an alias:
+Or run directly without an alias:
 
 ```bash
-uv run --directory /path/to/probe-mcp python -m probe.cli tasks/northwind.yaml
+uv run --directory /path/to/probe-mcp python -m probe.cli [command]
 ```
+
+---
+
+## Commands
+
+```bash
+probe-mcp help     Show workflow guide and all commands
+probe-mcp init     Create probe.yaml and a sample tasks file
+probe-mcp status   Show project overview: config, tasks, results, judge files
+probe-mcp eval     Run tasks against an MCP server, save results
+probe-mcp judge    Evaluate saved results using an LLM judge
+probe-mcp report   Print report from saved results
+probe-mcp full     Run eval + judge + report in one command
+```
+
+Run any command with `--help` for options:
+
+```bash
+probe-mcp eval --help
+probe-mcp full --help
+```
+
+---
+
+## Getting started
+
+```bash
+probe-mcp init
+```
+
+Creates `probe.yaml` and `tasks/my_server.yaml` with commented templates. Skips files that already exist.
+
+```bash
+probe-mcp status
+```
+
+Shows what is in the project: config, task files, results, judge files.
 
 ---
 
 ## Running the eval
 
-Against the semantic server:
+```bash
+probe-mcp eval tasks/northwind.yaml
+```
+
+Runs all tasks, prints a Rich table of results, saves a JSON results file to `results/`.
 
 ```bash
-probe-mcp tasks/northwind.yaml
+probe-mcp eval tasks/northwind.yaml --verbose
 ```
 
-```
-Running: customers_by_country
-Running: orders_by_shipper
-Running: overdue_orders
-Running: top_employee
-
-Results: 4/4 passed
-
-  ✓ customers_by_country (1 calls)
-      pass: tool 'customers_by_country' was called
-      pass: call count 1 within limit 1
-
-  ✓ orders_by_shipper (2 calls)
-      pass: tool 'shippers' was called
-      pass: tool 'orders' was called
-      pass: call count 2 within limit 3
-      pass: answer contains 'Speedy Express'
-
-  ✓ overdue_orders (1 calls)
-      pass: tool 'orders' was called
-      pass: call count 1 within limit 2
-
-  ✓ top_employee (2 calls)
-      pass: tool 'employees' was called
-      pass: tool 'orders' was called
-      pass: call count 2 within limit 5
-```
-
-Against the raw server, skipping tool name checks since the raw server uses different names:
+Shows full answers and detail lines in addition to the summary table.
 
 ```bash
-probe-mcp tasks/northwind.yaml --server mcp_server_raw.py --ignore-tool-names
+probe-mcp eval tasks/northwind.yaml --compare mcp_server_raw.py --ignore-tool-names
 ```
 
-```
-Results: 2/4 passed
-
-  ✓ customers_by_country (1 calls)
-  ✓ orders_by_shipper (2 calls)
-  ✗ overdue_orders (1 calls)
-      FAIL: task errored, prompt too long: 215718 tokens > 200000 maximum
-  ✗ top_employee (2 calls)
-      FAIL: task errored, prompt too long: 215718 tokens > 200000 maximum
-```
-
-Same tasks, same scorer, same model, different tool definitions.
+Runs the same tasks against two servers and prints a side-by-side comparison table.
 
 ---
 
-## Writing your own tasks
+## Running the judge
+
+```bash
+probe-mcp judge results/mcp_server_semantic_2026-05-20_15-38_claude-haiku-4-5_62f7.json
+```
+
+Reads a results file, calls a second LLM to evaluate each answer, saves a judge file to `judge/`. The judge evaluates answer quality beyond structural checks, catching cases where the agent gave a technically passing but misleading answer.
+
+```bash
+probe-mcp judge results/file.json --model claude-opus-4-5
+```
+
+Override the judge model for a single run.
+
+---
+
+## Full pipeline
+
+```bash
+probe-mcp full tasks/northwind.yaml
+```
+
+Runs eval, then judge, then prints the combined report in one command.
+
+---
+
+## Viewing results
+
+```bash
+probe-mcp report results/mcp_server_semantic_2026-05-20_15-38_claude-haiku-4-5_62f7.json
+```
+
+Prints the structural results and judge verdicts together. Automatically finds the matching judge file if it exists.
+
+---
+
+## Configuration
+
+`probe.yaml` at the project root controls model selection and output directories:
+
+```yaml
+models:
+  agent: claude-haiku-4-5   # model used to run tasks
+  judge: claude-haiku-4-5   # model used to evaluate results
+
+output:
+  results_dir: results
+  judge_dir: judge
+```
+
+All fields are optional. Defaults are used if `probe.yaml` does not exist.
+
+---
+
+## Writing tasks
 
 Task files are YAML. Each task has a prompt and a set of expectations:
 
@@ -198,19 +253,22 @@ tasks:
 
 Available expectations:
 
-- `tools_called_includes` — list of tool names that must appear in the trace
-- `max_calls` — maximum number of tool calls allowed (catches inefficient behavior)
+- `tools_called_includes` — tool names that must appear in the trace
+- `max_calls` — maximum number of tool calls allowed
 - `answer_includes` — string that must appear in the final answer
 
 ---
 
-## CLI options
+## File naming
 
-```bash
-probe-mcp tasks/northwind.yaml                          # run against server in task file
-probe-mcp tasks/northwind.yaml --server other.py        # override the server
-probe-mcp tasks/northwind.yaml --ignore-tool-names      # skip tool name checks
+Results and judge files are named to include the server, timestamp, model, and a short random ID:
+
 ```
+results/mcp_server_semantic_2026-05-20_15-38_claude-haiku-4-5_62f7.json
+judge/mcp_server_semantic_2026-05-20_15-38_claude-haiku-4-5_62f7_judge_claude-haiku-4-5_c600.json
+```
+
+Every filename reflects exactly what was used. No placeholder model names.
 
 ---
 
@@ -237,10 +295,9 @@ To explore the servers interactively, add them to `~/Library/Application Support
 
 ## What is coming next
 
-- LLM judge scorer: a second model call to evaluate answer quality beyond structural checks
-- SQL injection detection: flag MCP servers with unsafe parameter handling
-- Multi-model support: run the same tasks against different LLMs and compare
-- More task examples: richer scenarios beyond the Northwind baseline
+- Async parallel execution for compare runs
+- Multi-model support: run the same tasks against different LLMs
+- More task examples beyond the Northwind baseline
 - Pre-built adapters for third-party APIs
 
 ---

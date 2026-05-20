@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import secrets
 import sys
 from datetime import datetime
@@ -78,13 +79,19 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
     return {"trace": trace, "answer": final_answer}
 
 
-async def run_suite(suite: dict, tasks_file: str = "") -> tuple[list, str]:
+async def run_suite(suite: dict, tasks_file: str = "", verbose: bool = False) -> tuple[list, str]:
     """Run all tasks in a suite against the MCP server."""
     server_path = suite["server"]
+
+    env = dict(os.environ)
+    if not verbose:
+        env["FASTMCP_SHOW_SERVER_BANNER"] = "false"
+        env["FASTMCP_LOG_LEVEL"] = "WARNING"
 
     server_params = StdioServerParameters(
         command=sys.executable,
         args=[server_path],
+        env=env,
     )
 
     results = []

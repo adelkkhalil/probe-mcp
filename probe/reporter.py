@@ -1,57 +1,150 @@
 import re
 
+from rich import box
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
 
-def print_results(scored: list, server_name: str):
+console = Console()
+
+
+def _status_cell(status: str) -> Text:
+    mapping = {
+        "PASS": ("✓ PASS", "bold green"),
+        "FAIL": ("✗ FAIL", "bold red"),
+        "PARTIAL": ("~ PARTIAL", "bold blue"),
+        "WARN": ("! WARN", "bold yellow"),
+        "ERROR": ("! ERROR", "bold yellow"),
+    }
+    label, style = mapping.get(status, (status, "white"))
+    return Text(label, style=style)
+
+
+def _verdict_cell(verdict: str) -> Text:
+    mapping = {
+        "PASS": ("✓ PASS", "bold green"),
+        "PARTIAL": ("~ PARTIAL", "bold blue"),
+        "FAIL": ("✗ FAIL", "bold red"),
+        "ERROR": ("! ERROR", "bold yellow"),
+    }
+    label, style = mapping.get(verdict, (verdict, "white"))
+    return Text(label, style=style)
+
+
+def print_results(scored: list, server_name: str, verbose: bool = False):
     total = len(scored)
     passed = sum(1 for r in scored if r["status"] == "PASS")
-    print(f"\nResults: {passed}/{total} passed\n")
+
+    console.rule(f"[bold]{server_name}[/bold]")
+    console.print(f"\n[bold]Results: {passed}/{total} passed[/bold]\n")
+
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+    table.add_column("Task", style="cyan", no_wrap=True)
+    table.add_column("Status")
+    table.add_column("Calls", justify="right")
+    table.add_column("Answer")
 
     for r in scored:
-        icon = "✓" if r["status"] == "PASS" else "✗"
-        print(f"  {icon} {r['id']} ({r['call_count']} calls)")
-        for msg in r["failed"]:
-            if not r["answer"].startswith("ERROR:"):
-                print(f"      FAIL: {msg}")
-        for msg in r["passed"]:
-            print(f"      pass: {msg}")
         answer = r["answer"]
         if answer.startswith("ERROR:"):
             match = re.search(r"'message': '([^']+)'", answer)
-            if match:
-                print(f"      error: {match.group(1)[:120]}")
-            else:
-                print(f"      error: {answer[7:127]}")
-        else:
-            truncated = answer[:80]
-            if len(answer) > 80:
+            raw = " ".join((match.group(1) if match else answer[7:]).splitlines())
+            truncated = raw[:80]
+            if len(raw) > 80:
                 last_space = truncated.rfind(" ")
                 if last_space > 40:
-                    truncated = truncated[:last_space]
-            print(f"      answer: {truncated}...")
-        print()
+                    truncated = truncated[:last_space] + "..."
+                else:
+                    truncated = truncated[:80] + "..."
+            answer_cell = Text(truncated, style="bold red")
+        else:
+            flat = " ".join(answer.splitlines())
+            truncated = flat[:80]
+            if len(flat) > 80:
+                last_space = truncated.rfind(" ")
+                if last_space > 40:
+                    truncated = truncated[:last_space] + "..."
+                else:
+                    truncated = truncated[:80] + "..."
+            answer_cell = truncated
+
+        table.add_row(r["id"], _status_cell(r["status"]), str(r["call_count"]), answer_cell)
+
+    console.print(table)
+
+    if verbose:
+        for r in scored:
+            if not r["answer"].startswith("ERROR:"):
+                for msg in r["failed"]:
+                    console.print(f"  [bold red]FAIL ({r['id']}): {msg}[/bold red]")
+            for msg in r["passed"]:
+                console.print(f"  [dim green]pass ({r['id']}): {msg}[/dim green]")
+
+        console.print()
+        console.print("[bold]Answers:[/bold]")
+        for r in scored:
+            console.print(f"  [cyan]{r['id']}:[/cyan]")
+            answer = r["answer"]
+            if answer.startswith("ERROR:"):
+                match = re.search(r"'message': '([^']+)'", answer)
+                text = match.group(1) if match else answer[7:]
+                for line in text.splitlines():
+                    console.print(f"    [bold red]{line}[/bold red]")
+            else:
+                for line in answer.splitlines():
+                    console.print(f"    {line}")
+
+    console.print()
+
+
+def print_verdicts(verdicts: list, judge_model: str):
+    console.rule(f"[bold]Judge Verdicts[/bold] [dim]({judge_model})[/dim]")
+    console.print()
+
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+    table.add_column("Task", style="cyan", no_wrap=True)
+    table.add_column("Verdict")
+    table.add_column("Reason")
+
+    for v in verdicts:
+        table.add_row(v["id"], _verdict_cell(v["verdict"]), v.get("reason", ""))
+
+    console.print(table)
+    console.print()
+
+
+def _compare_cell(r: dict | None) -> Text:
+    if r is None:
+        return Text("FAIL", style="red")
+    status_styles = {
+        "PASS": ("✓ PASS", "green"),
+        "FAIL": ("✗ FAIL", "red"),
+        "PARTIAL": ("~ PARTIAL", "blue"),
+        "WARN": ("! WARN", "yellow"),
+        "ERROR": ("! ERROR", "yellow"),
+    }
+    label, style = status_styles.get(r["status"], (r["status"], "white"))
+    return Text(f"{label} ({r['call_count']})", style=style)
 
 
 def print_compare_table(scored1: list, scored2: list, server1_name: str, server2_name: str):
     scored2_by_id = {r["id"]: r for r in scored2}
-    col1 = max(len(server1_name), 20)
-    col2 = max(len(server2_name), 20)
-    task_col = max(len(r["id"]) for r in scored1) + 2
 
-    print(f"\n{'Task':<{task_col}}  {server1_name:<{col1}}  {server2_name:<{col2}}")
-    print("-" * (task_col + col1 + col2 + 4))
+    console.rule("[bold]Comparison[/bold]")
+    console.print()
+
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+    table.add_column("Task", style="cyan", no_wrap=True)
+    table.add_column(server1_name, justify="center")
+    table.add_column(server2_name, justify="center")
 
     for r1 in scored1:
         r2 = scored2_by_id.get(r1["id"])
-        s1 = f"PASS ({r1['call_count']} calls)" if r1["status"] == "PASS" else f"{r1['status']} ({r1['call_count']} calls)"
-        s2 = (
-            f"PASS ({r2['call_count']} calls)"
-            if r2 and r2["status"] == "PASS"
-            else f"{r2['status']} ({r2['call_count']} calls)"
-            if r2
-            else "FAIL"
-        )
-        print(f"{r1['id']:<{task_col}}  {s1:<{col1}}  {s2:<{col2}}")
+        table.add_row(r1["id"], _compare_cell(r1), _compare_cell(r2))
+
+    console.print(table)
+    console.print()
 
 
 def print_summary(server_name: str, passed: int, total: int):
-    print(f"\n{server_name}: {passed}/{total}")
+    console.print(f"[bold]{server_name}[/bold]: {passed}/{total}")

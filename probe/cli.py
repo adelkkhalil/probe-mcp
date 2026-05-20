@@ -86,6 +86,32 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str):
             print(f"{r1['id']:<{task_col}}  {s1:<{col1}}  {s2:<{col2}}")
 
         passed2 = sum(1 for r in scored2 if r["status"] == "PASS")
+        print(f"\nResults: {passed2}/{total} passed\n")
+        for r in scored2:
+            icon = "✓" if r["status"] == "PASS" else "✗"
+            print(f"  {icon} {r['id']} ({r['call_count']} calls)")
+            for msg in r["failed"]:
+                if not r['answer'].startswith("ERROR:"):
+                    print(f"      FAIL: {msg}")
+            for msg in r["passed"]:
+                print(f"      pass: {msg}")
+            answer = r['answer']
+            if answer.startswith("ERROR:"):
+                import re
+                match = re.search(r"'message': '([^']+)'", answer)
+                if match:
+                    print(f"      error: {match.group(1)[:120]}")
+                else:
+                    print(f"      error: {answer[7:127]}")
+            else:
+                truncated = answer[:80]
+                if len(answer) > 80:
+                    last_space = truncated.rfind(' ')
+                    if last_space > 40:
+                        truncated = truncated[:last_space]
+                print(f"      answer: {truncated}...")
+            print()
+
         print(f"\n{server1_name}: {passed}/{total}    {server2_name}: {passed2}/{total}")
 
 

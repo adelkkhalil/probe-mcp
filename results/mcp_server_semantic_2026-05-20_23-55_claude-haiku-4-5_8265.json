@@ -1,0 +1,105 @@
+{
+  "meta": {
+    "server": "mcp_server_semantic.py",
+    "tasks_file": "tasks/northwind.yaml",
+    "agent_model": "claude-haiku-4-5",
+    "timestamp": "2026-05-20T23:55:13",
+    "run_id": "8265"
+  },
+  "results": [
+    {
+      "id": "customers_by_country",
+      "prompt": "Find me all customers from Germany",
+      "trace": [
+        {
+          "tool": "customers_by_country",
+          "params": {
+            "country": "Germany"
+          }
+        }
+      ],
+      "answer": "I found 11 customers from Germany. Here they are:\n\n1. **Alfreds Futterkiste** (ALFKI)\n   - Contact: Maria Anders\n   - City: Berlin\n   - Address: Obere Str. 57, 12209\n   - Phone: 030-0074321\n\n2. **Blauer See Delikatessen** (BLAUS)\n   - Contact: Hanna Moos\n   - City: Mannheim\n   - Address: Forsterstr. 57, 68306\n   - Phone: 0621-08460\n\n3. **Drachenblut Delikatessen** (DRACD)\n   - Contact: Sven Ottlieb\n   - City: Aachen\n   - Address: Walserweg 21, 52066\n   - Phone: 0241-039123\n\n4. **Frankenversand** (FRANK)\n   - Contact: Peter Franken\n   - City: M\u00fcnchen\n   - Address: Berliner Platz 43, 80805\n   - Phone: 089-0877310\n\n5. **K\u00f6niglich Essen** (KOENE)\n   - Contact: Philip Cramer\n   - City: Brandenburg\n   - Address: Maubelstr. 90, 14776\n   - Phone: 0555-09876\n\n6. **Lehmanns Marktstand** (LEHMS)\n   - Contact: Renate Messner\n   - City: Frankfurt a.M.\n   - Address: Magazinweg 7, 60528\n   - Phone: 069-0245984\n\n7. **Morgenstern Gesundkost** (MORGK)\n   - Contact: Alexander Feuer\n   - City: Leipzig\n   - Address: Heerstr. 22, 04179\n   - Phone: 0342-023176\n\n8. **Ottilies K\u00e4seladen** (OTTIK)\n   - Contact: Henriette Pfalzheim\n   - City: K\u00f6ln\n   - Address: Mehrheimerstr. 369, 50739\n   - Phone: 0221-0644327\n\n9. **QUICK-Stop** (QUICK)\n   - Contact: Horst Kloss\n   - City: Cunewalde\n   - Address: Taucherstra\u00dfe 10, 01307\n   - Phone: 0372-035188\n\n10. **Toms Spezialit\u00e4ten** (TOMSP)\n    - Contact: Karin Josephs\n    - City: M\u00fcnster\n    - Address: Luisenstr. 48, 44087\n    - Phone: 0251-031259\n\n11. **Die Wandernde Kuh** (WANDK)\n    - Contact: Rita M\u00fcller\n    - City: Stuttgart\n    - Address: Adenauerallee 900, 70563\n    - Phone: 0711-020361",
+      "expect": {
+        "tools_called_includes": [
+          "customers_by_country"
+        ],
+        "max_calls": 1
+      }
+    },
+    {
+      "id": "orders_by_shipper",
+      "prompt": "Find me orders for customer ALFKI shipped via express courier",
+      "trace": [
+        {
+          "tool": "shippers",
+          "params": {}
+        },
+        {
+          "tool": "orders",
+          "params": {
+            "customer_id": "ALFKI",
+            "ship_via": 1
+          }
+        }
+      ],
+      "answer": "Perfect! I found **45 orders** for customer ALFKI shipped via Speedy Express (the express courier). Here's a summary:\n\n## Orders for Customer ALFKI via Speedy Express\n\n**Total Orders: 45**\n\n### Key Details:\n\n| Order ID | Order Date | Shipped Date | Freight Cost | Ship To |\n|----------|-----------|--------------|-------------|---------|\n| 10643 | 2017-08-25 | 2017-09-02 | $19.50 | Berlin, Germany |\n| 10702 | 2017-10-13 | 2017-10-21 | $15.25 | Berlin, Germany |\n| 10952 | 2018-03-16 | 2018-03-24 | $14.50 | Berlin, Germany |\n| 11011 | 2018-04-09 | 2018-04-13 | $25.00 | Berlin, Germany |\n| 11658 | 2019-03-10 | 2019-03-10 | $49.00 | San Crist\u00f3bal, Venezuela |\n| ... | ... | ... | ... | ... |\n| 21691 | 2019-04-07 | 2019-04-09 | $102.75 | San Francisco, USA |\n\n**Freight Cost Range:** $14.50 - $521.50\n\nThe customer ALFKI (Alfreds Futterkiste) has consistently used Speedy Express for shipping, with orders delivered to various locations including Germany, USA, Brazil, France, Spain, Italy, and other countries across multiple continents.\n\nWould you like more detailed information about any specific order, such as the products included or more detailed shipping information?",
+      "expect": {
+        "tools_called_includes": [
+          "shippers",
+          "orders"
+        ],
+        "max_calls": 3,
+        "answer_includes": "Speedy Express"
+      }
+    },
+    {
+      "id": "overdue_orders",
+      "prompt": "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?",
+      "trace": [
+        {
+          "tool": "orders",
+          "params": {
+            "limit": 200
+          }
+        }
+      ],
+      "answer": "Based on the order data, I can identify overdue orders by checking which orders have a RequiredDate that has passed but no ShippedDate (or haven't shipped yet). However, looking at the data provided, **all orders have ShippedDates**, which means they have all been shipped.\n\nIn a real-world scenario, we would look for orders where:\n- RequiredDate < today's date (the date has passed)\n- ShippedDate is null or missing (hasn't been shipped)\n\nSince all the orders in the database appear to have been shipped, **there are currently no overdue orders** in the system.\n\nHowever, if you're looking for orders that were **shipped late** (shipped after the required date), I can identify those. Would you like me to:\n\n1. **Find orders shipped late** - orders where ShippedDate > RequiredDate?\n2. **Check for orders with NULL ShippedDates** - orders that haven't shipped yet at all?\n3. **Filter by a specific date** - show orders with required dates before a particular date that are still pending?\n\nPlease let me know which analysis would be most helpful!",
+      "expect": {
+        "tools_called_includes": [
+          "orders"
+        ],
+        "max_calls": 2
+      }
+    },
+    {
+      "id": "top_employee",
+      "prompt": "Who is our top performing employee by number of orders handled?",
+      "trace": [
+        {
+          "tool": "employees",
+          "params": {}
+        },
+        {
+          "tool": "orders",
+          "params": {
+            "limit": 200
+          }
+        },
+        {
+          "tool": "orders",
+          "params": {
+            "limit": 200
+          }
+        }
+      ],
+      "answer": "Perfect! Now let me count the orders by each employee ID from the data I have. Let me tally up the EmployeeIDs:\n\nBased on the 200 orders retrieved, here's the count by employee:\n\n- Employee 1: 24 orders\n- Employee 2: 19 orders\n- Employee 3: 31 orders\n- Employee 4: 39 orders\n- Employee 5: 12 orders\n- Employee 6: 17 orders\n- Employee 7: 11 orders\n- Employee 8: 27 orders\n- Employee 9: 4 orders\n\n**Employee 4 has handled the most orders with 39 orders.** Based on the employee data I retrieved earlier, Employee 4 is **Margaret Peacock**, who is a Sales Representative.\n\nHere's her profile:\n- **Name:** Margaret Peacock\n- **Title:** Sales Representative\n- **Reports to:** Andrew Fuller (VP of Sales)\n- **Location:** Redmond, USA\n- **Background:** Margaret holds a BA in English literature from Concordia College (1958) and an MA from the American Institute of Culinary Arts (1966). She was assigned to the London office temporarily from July through November 1992.\n\nMargaret Peacock is clearly your top performing employee by number of orders handled!",
+      "expect": {
+        "tools_called_includes": [
+          "employees",
+          "orders"
+        ],
+        "max_calls": 5
+      }
+    }
+  ]
+}

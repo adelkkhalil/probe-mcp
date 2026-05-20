@@ -9,10 +9,17 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from probe.config import get_agent_model, get_judge_dir, get_judge_model, get_results_dir, load_config
+from probe.config import (
+    get_agent_model,
+    get_judge_dir,
+    get_judge_model,
+    get_max_tokens,
+    get_results_dir,
+    load_config,
+)
 from probe.judge import judge_results_file
 from probe.loader import load_tasks
-from probe.reporter import console, print_compare_table, print_results, print_summary, print_verdicts
+from probe.reporter import console, print_compare_table, print_results, print_verdicts
 from probe.runner import run_suite
 from probe.scorer import score_task
 
@@ -20,10 +27,35 @@ _PROBE_YAML = """\
 models:
   agent: claude-haiku-4-5
   judge: claude-haiku-4-5
+max_tokens: 4096
 output:
   results_dir: results
   judge_dir: judge
 """
+
+
+def _run_async(coro):
+    try:
+        return asyncio.run(coro)
+    except (FileNotFoundError, ValueError) as e:
+        raise click.ClickException(str(e))
+
+
+def _load_tasks_or_exit(tasks_file: str) -> dict:
+    try:
+        return load_tasks(tasks_file)
+    except (FileNotFoundError, ValueError) as e:
+        raise click.ClickException(str(e))
+
+
+def _load_json_or_exit(path: str, label: str) -> dict:
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        raise click.ClickException(f"{label} not found: {path}")
+    except json.JSONDecodeError as e:
+        raise click.ClickException(f"{label} is not valid JSON ({path}): {e}")
 
 _SAMPLE_TASKS = """\
 # MCP server to test
@@ -74,6 +106,7 @@ def help_command():
     content.append("  models:\n")
     content.append("    agent: claude-haiku-4-5\n")
     content.append("    judge: claude-haiku-4-5\n")
+    content.append("  max_tokens: 4096\n")
     content.append("  output:\n")
     content.append("    results_dir: results\n")
     content.append("    judge_dir: judge\n")
@@ -127,6 +160,7 @@ def status():
     cfg_table.add_column("Value")
     cfg_table.add_row("agent model", get_agent_model(config))
     cfg_table.add_row("judge model", get_judge_model(config))
+    cfg_table.add_row("max_tokens", str(get_max_tokens(config)))
     cfg_table.add_row("results_dir", get_results_dir(config))
     cfg_table.add_row("judge_dir", get_judge_dir(config))
     console.print(cfg_table)
@@ -209,7 +243,7 @@ def status():
 @click.option("--verbose", is_flag=True, default=False, help="Show MCP server output and full answers")
 def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, verbose: bool):
     """Run an eval suite against an MCP server."""
-    suite = load_tasks(tasks_file)
+    suite = _load_tasks_or_exit(tasks_file)
 
     if server:
         suite["server"] = server
@@ -218,7 +252,7 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
         for task in suite["tasks"]:
             task["expect"].pop("tools_called_includes", None)
 
-    results, results_file = asyncio.run(run_suite(suite, tasks_file, verbose=verbose))
+    results, results_file = _run_async(run_suite(suite, tasks_file, verbose=verbose))
     scored = [score_task(r) for r in results]
 
     if compare:
@@ -228,7 +262,7 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
             for task in suite2["tasks"]:
                 task["expect"].pop("tools_called_includes", None)
 
-        results2, results_file2 = asyncio.run(run_suite(suite2, tasks_file, verbose=verbose))
+        results2, results_file2 = _run_async(run_suite(suite2, tasks_file, verbose=verbose))
         scored2 = [score_task(r) for r in results2]
 
         print_compare_table(scored, scored2, suite["server"], compare)
@@ -257,7 +291,7 @@ def judge(results_file: str, model: str):
     judge_model = model or get_judge_model(config)
     judge_dir = get_judge_dir(config)
 
-    output_file = asyncio.run(judge_results_file(results_file, judge_model, judge_dir))
+    output_file = _run_async(judge_results_file(results_file, judge_model, judge_dir))
 
     with open(output_file) as f:
         data = json.load(f)
@@ -274,8 +308,7 @@ def report(results_file: str, verbose: bool):
     config = load_config()
     judge_dir = get_judge_dir(config)
 
-    with open(results_file) as f:
-        data = json.load(f)
+    data = _load_json_or_exit(results_file, "Results file")
 
     meta = data.get("meta", {})
     results = data.get("results", [])
@@ -289,8 +322,7 @@ def report(results_file: str, verbose: bool):
 
     if judge_files:
         latest = max(judge_files, key=lambda p: p.stat().st_mtime)
-        with open(latest) as f:
-            judge_data = json.load(f)
+        judge_data = _load_json_or_exit(str(latest), "Judge file")
         print_verdicts(judge_data["verdicts"], judge_data["meta"].get("judge_model", "unknown"))
     else:
         console.print("[dim](No judge file found. Run `probe-mcp judge` to add LLM verdicts.)[/dim]")
@@ -306,7 +338,7 @@ def report(results_file: str, verbose: bool):
 def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, judge_model: str, verbose: bool):
     """Run eval, then judge, then report in sequence."""
     config = load_config()
-    suite = load_tasks(tasks_file)
+    suite = _load_tasks_or_exit(tasks_file)
 
     if server:
         suite["server"] = server
@@ -315,7 +347,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
         for task in suite["tasks"]:
             task["expect"].pop("tools_called_includes", None)
 
-    results, results_file = asyncio.run(run_suite(suite, tasks_file, verbose=verbose))
+    results, results_file = _run_async(run_suite(suite, tasks_file, verbose=verbose))
     scored = [score_task(r) for r in results]
 
     print_results(scored, suite["server"], verbose=verbose)
@@ -330,7 +362,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
             for task in suite2["tasks"]:
                 task["expect"].pop("tools_called_includes", None)
 
-        results2, results2_file = asyncio.run(run_suite(suite2, tasks_file, verbose=verbose))
+        results2, results2_file = _run_async(run_suite(suite2, tasks_file, verbose=verbose))
         scored2 = [score_task(r) for r in results2]
 
         print_compare_table(scored, scored2, suite["server"], compare)
@@ -346,7 +378,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
     j_model = judge_model or get_judge_model(config)
     judge_dir = get_judge_dir(config)
 
-    judge_file = asyncio.run(judge_results_file(results_file, j_model, judge_dir))
+    judge_file = _run_async(judge_results_file(results_file, j_model, judge_dir))
     with open(judge_file) as f:
         judge_data = json.load(f)
 
@@ -354,7 +386,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
     console.print(f"[dim]Saved: {judge_file}[/dim]")
 
     if compare and results2_file:
-        judge_file2 = asyncio.run(judge_results_file(results2_file, j_model, judge_dir))
+        judge_file2 = _run_async(judge_results_file(results2_file, j_model, judge_dir))
         with open(judge_file2) as f:
             judge_data2 = json.load(f)
 

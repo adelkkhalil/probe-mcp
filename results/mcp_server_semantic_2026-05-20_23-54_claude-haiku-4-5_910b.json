@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "server": "mcp_server_semantic.py",
+    "tasks_file": "tasks/northwind.yaml",
+    "agent_model": "claude-haiku-4-5",
+    "timestamp": "2026-05-20T23:54:06",
+    "run_id": "910b"
+  },
+  "results": [
+    {
+      "id": "customers_by_country",
+      "prompt": "Find me all customers from Germany",
+      "trace": [],
+      "answer": "ERROR: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"",
+      "expect": {
+        "tools_called_includes": [
+          "customers_by_country"
+        ],
+        "max_calls": 1
+      }
+    },
+    {
+      "id": "orders_by_shipper",
+      "prompt": "Find me orders for customer ALFKI shipped via express courier",
+      "trace": [],
+      "answer": "ERROR: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"",
+      "expect": {
+        "tools_called_includes": [
+          "shippers",
+          "orders"
+        ],
+        "max_calls": 3,
+        "answer_includes": "Speedy Express"
+      }
+    },
+    {
+      "id": "overdue_orders",
+      "prompt": "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?",
+      "trace": [],
+      "answer": "ERROR: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"",
+      "expect": {
+        "tools_called_includes": [
+          "orders"
+        ],
+        "max_calls": 2
+      }
+    },
+    {
+      "id": "top_employee",
+      "prompt": "Who is our top performing employee by number of orders handled?",
+      "trace": [],
+      "answer": "ERROR: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be set. Or for one of the `X-Api-Key` or `Authorization` headers to be explicitly omitted\"",
+      "expect": {
+        "tools_called_includes": [
+          "employees",
+          "orders"
+        ],
+        "max_calls": 5
+      }
+    }
+  ]
+}

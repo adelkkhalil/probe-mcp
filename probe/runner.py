@@ -10,10 +10,12 @@ from anthropic import Anthropic
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from probe.config import get_agent_model, get_results_dir, load_config
+from probe.config import get_agent_model, get_max_tokens, get_results_dir, load_config
 
 config = load_config()
 client = Anthropic()
+
+MAX_ITERATIONS = 20
 
 
 async def get_tools(session: ClientSession) -> list:
@@ -29,16 +31,21 @@ async def get_tools(session: ClientSession) -> list:
     return tools
 
 
+def _first_text(content) -> str | None:
+    return next((block.text for block in content if hasattr(block, "text")), None)
+
+
 async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
     """Run a single task against MCP server and return the trace."""
     messages = [{"role": "user", "content": task["prompt"]}]
     trace = []
+    response = None
 
-    while True:
+    for _ in range(MAX_ITERATIONS):
         try:
             response = client.messages.create(
                 model=get_agent_model(config),
-                max_tokens=1000,
+                max_tokens=get_max_tokens(config),
                 tools=tools,
                 messages=messages,
             )
@@ -46,16 +53,26 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
             return {
                 "trace": trace,
                 "answer": f"ERROR: {str(e)[:200]}",
-                "error": True,
             }
 
         if response.stop_reason == "end_turn":
             break
 
         if response.stop_reason != "tool_use":
-            break
+            partial = _first_text(response.content) or ""
+            return {
+                "trace": trace,
+                "answer": (
+                    f"ERROR: agent stopped early (stop_reason={response.stop_reason}): {partial}"
+                )[:300],
+            }
 
         tool_calls = [block for block in response.content if block.type == "tool_use"]
+        if not tool_calls:
+            return {
+                "trace": trace,
+                "answer": "ERROR: response had stop_reason=tool_use but contained no tool_use blocks",
+            }
 
         messages.append({"role": "assistant", "content": response.content})
 
@@ -70,11 +87,21 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
             })
 
         messages.append({"role": "user", "content": tool_results})
+    else:
+        return {
+            "trace": trace,
+            "answer": f"ERROR: agent exceeded max iterations ({MAX_ITERATIONS})",
+        }
 
-    final_answer = next(
-        (block.text for block in response.content if hasattr(block, "text")),
-        "",
-    )
+    final_answer = _first_text(response.content)
+    if final_answer is None:
+        return {
+            "trace": trace,
+            "answer": (
+                f"ERROR: agent ended without producing a text response "
+                f"(stop_reason={response.stop_reason})"
+            ),
+        }
 
     return {"trace": trace, "answer": final_answer}
 
@@ -82,6 +109,9 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
 async def run_suite(suite: dict, tasks_file: str = "", verbose: bool = False) -> tuple[list, str]:
     """Run all tasks in a suite against the MCP server."""
     server_path = suite["server"]
+
+    if not Path(server_path).is_file():
+        raise FileNotFoundError(f"MCP server file not found: {server_path}")
 
     env = dict(os.environ)
     if not verbose:

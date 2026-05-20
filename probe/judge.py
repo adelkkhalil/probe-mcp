@@ -72,8 +72,13 @@ async def judge_task(task_id: str, task_prompt: str, trace: list, answer: str, j
 
 
 async def judge_results_file(results_path: str, judge_model: str, judge_dir: str) -> str:
-    with open(results_path) as f:
-        data = json.load(f)
+    try:
+        with open(results_path) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Results file not found: {results_path}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Results file is not valid JSON ({results_path}): {e}")
 
     results = data.get("results", [])
 

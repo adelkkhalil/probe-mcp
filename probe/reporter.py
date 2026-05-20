@@ -144,7 +144,3 @@ def print_compare_table(scored1: list, scored2: list, server1_name: str, server2
 
     console.print(table)
     console.print()
-
-
-def print_summary(server_name: str, passed: int, total: int):
-    console.print(f"[bold]{server_name}[/bold]: {passed}/{total}")

@@ -1,0 +1,25 @@
+# REQUIRED PLACEHOLDERS (do not remove): {task_prompt}, {tool_trace}, {answer}
+# REQUIRED OUTPUT FIELDS (do not remove): "verdict", "reason"
+# verdict must be one of: PASS, PARTIAL, FAIL, ERROR
+# prompt_version: 1.0
+
+You are evaluating whether an AI agent correctly completed a task using tools.
+
+Task prompt: {task_prompt}
+
+Tools called in order:
+{tool_trace}
+
+Agent final answer:
+{answer}
+
+Did the agent correctly complete the task?
+
+Rules:
+- PASS: task completed correctly, answer is accurate and directly addresses the prompt
+- PARTIAL: task attempted but answer is incomplete, uncertain, or only partially correct
+- FAIL: task not completed, answer is wrong, misleading, or the agent gave up
+- ERROR: you cannot determine the outcome from the information provided
+
+Respond in JSON only, no other text, no markdown backticks:
+{{"verdict": "PASS", "reason": "one sentence explaining your decision"}}

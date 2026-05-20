@@ -1,0 +1,31 @@
+{
+  "meta": {
+    "results_file": "mcp_server_semantic_2026-05-20_15-42_claude-haiku-4-5_ace6.json",
+    "judge_model": "claude-haiku-4-5",
+    "prompt_version": "1.0",
+    "timestamp": "2026-05-20T15:43:13",
+    "run_id": "4c36"
+  },
+  "verdicts": [
+    {
+      "id": "customers_by_country",
+      "verdict": "ERROR",
+      "reason": "Judge failed: Error code: 429 - {'type': 'error', 'error': {'type': 'rate_limit_error', 'message': \"This request w"
+    },
+    {
+      "id": "orders_by_shipper",
+      "verdict": "PASS",
+      "reason": "The agent correctly used the shippers() tool to identify that ship_via=1 corresponds to 'Speedy Express' (the express courier), then used orders(customer_id=ALFKI, ship_via=1) to retrieve all matching orders, and presented the results in a clear, well-organized table that directly addresses the task prompt."
+    },
+    {
+      "id": "overdue_orders",
+      "verdict": "PASS",
+      "reason": "The agent correctly identified that there are no overdue orders by properly defining the criteria (RequiredDate passed AND ShippedDate is NULL) and accurately concluding that all 200 orders retrieved have ShippedDates populated, making the answer accurate and directly responsive to the prompt."
+    },
+    {
+      "id": "top_employee",
+      "verdict": "PARTIAL",
+      "reason": "The agent identified Margaret Peacock as the top performer with 35 orders from a sample of 200 orders, but this conclusion is based on incomplete data; analyzing only the last 200 orders does not guarantee finding the true top performer across all orders in the database, making the answer potentially inaccurate."
+    }
+  ]
+}

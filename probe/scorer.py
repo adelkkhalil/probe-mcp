@@ -51,4 +51,6 @@ def score_task(result: dict) -> dict:
         "failed": failed,
         "call_count": len(trace),
         "answer": answer,
+        "expect": expect,
+        "trace": trace,
     }

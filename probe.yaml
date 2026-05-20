@@ -1,0 +1,7 @@
+models:
+  agent: claude-haiku-4-5
+  judge: claude-haiku-4-5
+
+output:
+  results_dir: results
+  judge_dir: judge

@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import json
+import os
 from pathlib import Path
 
 import click
@@ -22,6 +23,20 @@ from probe.loader import load_tasks
 from probe.reporter import console, print_compare_table, print_results, print_verdicts
 from probe.runner import run_suite
 from probe.scorer import score_task
+
+
+def _working_dir() -> Path:
+    """Return the user's actual working directory.
+
+    When probe-mcp is run via the uv alias with --directory, uv changes
+    cwd to the package directory. We pass the original cwd via the
+    PROBE_CWD environment variable to preserve it.
+    """
+    probe_cwd = os.environ.get("PROBE_CWD")
+    if probe_cwd:
+        return Path(probe_cwd)
+    return _working_dir()
+
 
 _PROBE_YAML = """\
 models:
@@ -118,7 +133,7 @@ def help_command():
 @click.option("--force", is_flag=True, default=False, help="Overwrite existing files")
 def init(force: bool):
     """Create probe.yaml and a sample tasks file to get started."""
-    Path("tasks").mkdir(exist_ok=True)
+    (_working_dir() / "tasks").mkdir(exist_ok=True)
 
     files = [
         ("probe.yaml", _PROBE_YAML),
@@ -127,7 +142,7 @@ def init(force: bool):
 
     created = 0
     for filepath, content in files:
-        p = Path(filepath)
+        p = _working_dir() / filepath
         if not p.exists():
             p.write_text(content)
             console.print(f"[green]Created {filepath}[/green]")
@@ -168,7 +183,7 @@ def status():
 
     # Section 2 — Task files
     console.rule("[bold]Task Files[/bold]")
-    tasks_path = Path("tasks")
+    tasks_path = _working_dir() / "tasks"
     task_files = sorted(tasks_path.glob("*.yaml")) if tasks_path.exists() else []
     if task_files:
         task_table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
@@ -188,7 +203,7 @@ def status():
 
     # Section 3 — Results
     console.rule("[bold]Results[/bold]")
-    results_path = Path(get_results_dir(config))
+    results_path = _working_dir() / get_results_dir(config)
     result_files = (
         sorted(results_path.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
         if results_path.exists()
@@ -213,7 +228,7 @@ def status():
 
     # Section 4 — Judge files
     console.rule("[bold]Judge Files[/bold]")
-    judge_path = Path(get_judge_dir(config))
+    judge_path = _working_dir() / get_judge_dir(config)
     judge_files = (
         sorted(judge_path.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
         if judge_path.exists()

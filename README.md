@@ -136,19 +136,30 @@ Set your API key:
 export ANTHROPIC_API_KEY="your-key-here"
 ```
 
-Add an alias to your shell profile:
+Add an alias to your shell profile. The alias must preserve your current
+working directory so that `init` and `status` create files in the right place:
 
 ```bash
-alias probe-mcp="uv run --directory /path/to/probe-mcp python -m probe.cli"
+# bash or zsh (~/.zshrc or ~/.bash_profile)
+alias probe-mcp='PROBE_CWD="$PWD" uv run --directory /path/to/probe-mcp python -m probe.cli'
+
+# fish (~/.config/fish/config.fish)
+alias probe-mcp='env PROBE_CWD=(pwd) uv run --directory /path/to/probe-mcp python -m probe.cli'
 ```
 
-Or run directly:
+Replace `/path/to/probe-mcp` with the absolute path where you cloned the repo.
+
+Reload your shell:
 
 ```bash
-uv run --directory /path/to/probe-mcp python -m probe.cli [command]
+source ~/.zshrc
 ```
 
----
+Or run directly without an alias:
+
+```bash
+PROBE_CWD="$PWD" uv run --directory /path/to/probe-mcp python -m probe.cli [command]
+```
 
 ## Getting started
 

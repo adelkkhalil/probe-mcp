@@ -221,9 +221,6 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
     results, results_file = asyncio.run(run_suite(suite, tasks_file, verbose=verbose))
     scored = [score_task(r) for r in results]
 
-    print_results(scored, suite["server"], verbose=verbose)
-    console.print(f"[dim]Saved: {results_file}[/dim]")
-
     if compare:
         suite2 = copy.deepcopy(suite)
         suite2["server"] = compare
@@ -241,8 +238,14 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
         total = len(scored)
         console.print(f"[bold]{suite['server']}[/bold]: {passed}/{total}    [bold]{compare}[/bold]: {passed2}/{total}")
 
+        print_results(scored, suite["server"], verbose=verbose)
+        console.print(f"[dim]Saved: {results_file}[/dim]")
+
         print_results(scored2, compare, verbose=verbose)
         console.print(f"[dim]Saved: {results_file2}[/dim]")
+    else:
+        print_results(scored, suite["server"], verbose=verbose)
+        console.print(f"[dim]Saved: {results_file}[/dim]")
 
 
 @cli.command()

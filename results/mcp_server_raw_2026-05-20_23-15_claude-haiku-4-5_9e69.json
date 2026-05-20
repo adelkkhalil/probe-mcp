@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "server": "mcp_server_raw.py",
+    "tasks_file": "tasks/northwind.yaml",
+    "agent_model": "claude-haiku-4-5",
+    "timestamp": "2026-05-20T23:15:03",
+    "run_id": "9e69"
+  },
+  "results": [
+    {
+      "id": "customers_by_country",
+      "prompt": "Find me all customers from Germany",
+      "trace": [
+        {
+          "tool": "raw_get_customers",
+          "params": {
+            "country": "Germany"
+          }
+        }
+      ],
+      "answer": "I found 11 customers from Germany. Here they are:\n\n1. **Alfreds Futterkiste** (ALFKI)\n   - Contact: Maria Anders, Sales Representative\n   - City: Berlin\n   - Phone: 030-0074321\n\n2. **Blauer See Delikatessen** (BLAUS)\n   - Contact: Hanna Moos, Sales Representative\n   - City: Mannheim\n   - Phone: 0621-08460\n\n3. **Drachenblut Delikatessen** (DRACD)\n   - Contact: Sven Ottlieb, Order Administrator\n   - City: Aachen\n   - Phone: 0241-039123\n\n4. **Frankenversand** (FRANK)\n   - Contact: Peter Franken, Marketing Manager\n   - City: M\u00fcnchen\n   - Phone: 089-0877310\n\n5. **K\u00f6niglich Essen** (KOENE)\n   - Contact: Philip Cramer, Sales Associate\n   - City: Brandenburg\n   - Phone: 0555-09876\n\n6. **Lehmanns Marktstand** (LEHMS)\n   - Contact: Renate Messner, Sales Representative\n   - City: Frankfurt a.M.\n   - Phone: 069-0245984\n\n7. **Morgenstern Gesundkost** (MORGK)\n   - Contact: Alexander Feuer, Marketing Assistant\n   - City: Leipzig\n   - Phone: 0342-023176\n\n8. **Ottilies K\u00e4seladen** (OTTIK)\n   - Contact: Henriette Pfalzheim, Owner\n   - City: K\u00f6ln\n   - Phone: 0221-0644327\n\n9. **QUICK-Stop** (QUICK)\n   - Contact: Horst Kloss, Accounting Manager\n   - City: Cunewalde\n   - Phone: 0372-035188\n\n10. **Toms Spezialit\u00e4ten** (TOMSP)\n    - Contact: Karin Josephs, Marketing Manager\n    - City: M\u00fcnster\n    - Phone: 0251-031259\n\n11. **Die Wandernde Kuh** (WANDK)\n    - Contact: Rita M\u00fcller, Sales Representative\n    - City: Stuttgart\n    - Phone: 0711-020361",
+      "expect": {
+        "max_calls": 1
+      }
+    },
+    {
+      "id": "orders_by_shipper",
+      "prompt": "Find me orders for customer ALFKI shipped via express courier",
+      "trace": [
+        {
+          "tool": "raw_get_shippers",
+          "params": {}
+        },
+        {
+          "tool": "raw_get_orders",
+          "params": {
+            "customer_id": "ALFKI",
+            "ship_via": 1
+          }
+        }
+      ],
+      "answer": "Perfect! I found **60 orders** for customer ALFKI (Alfreds Futterkiste) that were shipped via **Speedy Express** (the express courier). Here's a summary:\n\n## Orders for ALFKI via Speedy Express (ShipperID: 1)\n\n| Order ID | Order Date | Shipped Date | Freight | Ship City | Ship Country |\n|----------|-----------|--------------|---------|-----------|--------------|\n| 10643 | 2017-08-25 | 2017-09-02 | $19.50 | Berlin | Germany |\n| 10702 | 2017-10-13 | 2017-10-21 | $15.25 | Berlin | Germany |\n| 10952 | 2018-03-16 | 2018-03-24 | $14.50 | Berlin | Germany |\n| 11011 | 2018-04-09 | 2018-04-13 | $25.00 | Berlin | Germany |\n| 11658 | 2019-03-10 | 2019-03-10 | $49.00 | San Crist\u00f3bal | Venezuela |\n| 11717 | 2014-04-29 | 2014-05-02 | $17.50 | Mannheim | Germany |\n| 11789 | 2013-01-05 | 2013-01-06 | $272.50 | Reggio Emilia | Italy |\n| 11798 | 2014-12-08 | 2014-12-19 | $49.75 | M\u00e9xico D.F. | Mexico |\n| 11819 | 2019-05-30 | 2019-06-06 | $253.00 | Lisboa | Portugal |\n| 11863 | 2014-07-07 | 2014-07-14 | $312.75 | M\u00e9xico D.F. | Mexico |\n\n*(and 50 more orders...)*\n\n**Total Freight Value:** Approximately **$10,426.75**\n\nThe orders span multiple years from 2012 to 2023 and are shipped to various locations worldwide including Germany, Italy, Mexico, Brazil, USA, and many other countries. Would you like me to provide more details about any specific orders or generate additional analysis?",
+      "expect": {
+        "max_calls": 3,
+        "answer_includes": "Speedy Express"
+      }
+    },
+    {
+      "id": "overdue_orders",
+      "prompt": "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?",
+      "trace": [
+        {
+          "tool": "raw_get_orders",
+          "params": {}
+        }
+      ],
+      "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215724 tokens > 200000 maximum'}, 'request_id': 'req_011CbEMZiSsouwuxHUcV7gZ1'}",
+      "expect": {
+        "max_calls": 2
+      }
+    },
+    {
+      "id": "top_employee",
+      "prompt": "Who is our top performing employee by number of orders handled?",
+      "trace": [
+        {
+          "tool": "raw_get_employees",
+          "params": {}
+        },
+        {
+          "tool": "raw_get_orders",
+          "params": {}
+        }
+      ],
+      "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215132 tokens > 200000 maximum'}, 'request_id': 'req_011CbEMZynN3J4PzeEPKptBx'}",
+      "expect": {
+        "max_calls": 5
+      }
+    }
+  ]
+}

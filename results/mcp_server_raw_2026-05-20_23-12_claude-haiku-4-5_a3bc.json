@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "server": "mcp_server_raw.py",
+    "tasks_file": "tasks/northwind.yaml",
+    "agent_model": "claude-haiku-4-5",
+    "timestamp": "2026-05-20T23:12:07",
+    "run_id": "a3bc"
+  },
+  "results": [
+    {
+      "id": "customers_by_country",
+      "prompt": "Find me all customers from Germany",
+      "trace": [
+        {
+          "tool": "raw_get_customers",
+          "params": {
+            "country": "Germany"
+          }
+        }
+      ],
+      "answer": "Here are all the customers from Germany:\n\n1. **ALFKI** - Alfreds Futterkiste\n   - Contact: Maria Anders (Sales Representative)\n   - Location: Berlin\n   - Phone: 030-0074321\n\n2. **BLAUS** - Blauer See Delikatessen\n   - Contact: Hanna Moos (Sales Representative)\n   - Location: Mannheim\n   - Phone: 0621-08460\n\n3. **DRACD** - Drachenblut Delikatessen\n   - Contact: Sven Ottlieb (Order Administrator)\n   - Location: Aachen\n   - Phone: 0241-039123\n\n4. **FRANK** - Frankenversand\n   - Contact: Peter Franken (Marketing Manager)\n   - Location: M\u00fcnchen\n   - Phone: 089-0877310\n\n5. **KOENE** - K\u00f6niglich Essen\n   - Contact: Philip Cramer (Sales Associate)\n   - Location: Brandenburg\n   - Phone: 0555-09876\n\n6. **LEHMS** - Lehmanns Marktstand\n   - Contact: Renate Messner (Sales Representative)\n   - Location: Frankfurt a.M.\n   - Phone: 069-0245984\n\n7. **MORGK** - Morgenstern Gesundkost\n   - Contact: Alexander Feuer (Marketing Assistant)\n   - Location: Leipzig\n   - Phone: 0342-023176\n\n8. **OTTIK** - Ottilies K\u00e4seladen\n   - Contact: Henriette Pfalzheim (Owner)\n   - Location: K\u00f6ln\n   - Phone: 0221-0644327\n\n9. **QUICK** - QUICK-Stop\n   - Contact: Horst Kloss (Accounting Manager)\n   - Location: Cunewalde\n   - Phone: 0372-035188\n\n10. **TOMSP** - Toms Spezialit\u00e4ten\n    - Contact: Karin Josephs (Marketing Manager)\n    - Location: M\u00fcnster\n    - Phone: 0251-031259\n\n11. **WANDK** - Die Wandernde Kuh\n    - Contact: Rita M\u00fcller (Sales Representative)\n    - Location: Stuttgart\n    - Phone: 0711-020361\n\nThere are **11 customers from Germany** in total.",
+      "expect": {
+        "max_calls": 1
+      }
+    },
+    {
+      "id": "orders_by_shipper",
+      "prompt": "Find me orders for customer ALFKI shipped via express courier",
+      "trace": [
+        {
+          "tool": "raw_get_shippers",
+          "params": {}
+        },
+        {
+          "tool": "raw_get_orders",
+          "params": {
+            "customer_id": "ALFKI",
+            "ship_via": 1
+          }
+        }
+      ],
+      "answer": "Perfect! I found **51 orders** for customer ALFKI shipped via **Speedy Express** (the express courier service). Here's a summary:\n\n**Shipper Details:**\n- **Shipper:** Speedy Express (ShipperID: 1)\n- **Phone:** (503) 555-9831\n\n**Orders Found: 51 total**\n\nHere are some key details from the orders:\n\n| Order ID | Order Date | Shipped Date | Freight Cost | Ship To |\n|----------|-----------|--------------|--------------|---------|\n| 10643 | 2017-08-25 | 2017-09-02 | $19.50 | Alfreds Futterkiste, Berlin, Germany |\n| 10702 | 2017-10-13 | 2017-10-21 | $15.25 | Alfred-s Futterkiste, Berlin, Germany |\n| 10952 | 2018-03-16 | 2018-03-24 | $14.50 | Alfred-s Futterkiste, Berlin, Germany |\n| 11011 | 2018-04-09 | 2018-04-13 | $25.00 | Alfred-s Futterkiste, Berlin, Germany |\n| ... | ... | ... | ... | ... |\n| 26469 | 2013-01-06 | 2013-01-07 | $373.00 | Great Lakes Food Market, Eugene, USA |\n\nThe orders span from 2012 to 2023, with freight costs ranging from $11.00 to $521.50. The shipments go to various countries across North America, South America, Europe, and other regions.\n\nWould you like me to get more details about any specific orders, such as the line items/products in a particular order?",
+      "expect": {
+        "max_calls": 3,
+        "answer_includes": "Speedy Express"
+      }
+    },
+    {
+      "id": "overdue_orders",
+      "prompt": "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?",
+      "trace": [
+        {
+          "tool": "raw_get_orders",
+          "params": {}
+        }
+      ],
+      "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215724 tokens > 200000 maximum'}, 'request_id': 'req_011CbEMLp8L59N9P7Xbpv66M'}",
+      "expect": {
+        "max_calls": 2
+      }
+    },
+    {
+      "id": "top_employee",
+      "prompt": "Who is our top performing employee by number of orders handled?",
+      "trace": [
+        {
+          "tool": "raw_get_employees",
+          "params": {}
+        },
+        {
+          "tool": "raw_get_orders",
+          "params": {}
+        }
+      ],
+      "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215142 tokens > 200000 maximum'}, 'request_id': 'req_011CbEMM3zWaDP99sHShb5LX'}",
+      "expect": {
+        "max_calls": 5
+      }
+    }
+  ]
+}

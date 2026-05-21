@@ -1,0 +1,81 @@
+{
+  "meta": {
+    "server": "mcp_server_raw.py",
+    "tasks_file": "tasks/northwind.yaml",
+    "agent_model": "claude-haiku-4-5",
+    "timestamp": "2026-05-21T14:29:07",
+    "run_id": "ca97"
+  },
+  "results": [
+    {
+      "id": "customers_by_country",
+      "prompt": "Find me all customers from Germany",
+      "trace": [
+        {
+          "tool": "raw_get_customers",
+          "params": {
+            "country": "Germany"
+          }
+        }
+      ],
+      "answer": "Here are all the customers from Germany:\n\n1. **Alfreds Futterkiste** (ALFKI)\n   - Contact: Maria Anders | Sales Representative\n   - City: Berlin\n   - Address: Obere Str. 57, 12209\n   - Phone: 030-0074321\n\n2. **Blauer See Delikatessen** (BLAUS)\n   - Contact: Hanna Moos | Sales Representative\n   - City: Mannheim\n   - Address: Forsterstr. 57, 68306\n   - Phone: 0621-08460\n\n3. **Drachenblut Delikatessen** (DRACD)\n   - Contact: Sven Ottlieb | Order Administrator\n   - City: Aachen\n   - Address: Walserweg 21, 52066\n   - Phone: 0241-039123\n\n4. **Frankenversand** (FRANK)\n   - Contact: Peter Franken | Marketing Manager\n   - City: M\u00fcnchen\n   - Address: Berliner Platz 43, 80805\n   - Phone: 089-0877310\n\n5. **K\u00f6niglich Essen** (KOENE)\n   - Contact: Philip Cramer | Sales Associate\n   - City: Brandenburg\n   - Address: Maubelstr. 90, 14776\n   - Phone: 0555-09876\n\n6. **Lehmanns Marktstand** (LEHMS)\n   - Contact: Renate Messner | Sales Representative\n   - City: Frankfurt a.M.\n   - Address: Magazinweg 7, 60528\n   - Phone: 069-0245984\n\n7. **Morgenstern Gesundkost** (MORGK)\n   - Contact: Alexander Feuer | Marketing Assistant\n   - City: Leipzig\n   - Address: Heerstr. 22, 04179\n   - Phone: 0342-023176\n\n8. **Ottilies K\u00e4seladen** (OTTIK)\n   - Contact: Henriette Pfalzheim | Owner\n   - City: K\u00f6ln\n   - Address: Mehrheimerstr. 369, 50739\n   - Phone: 0221-0644327\n\n9. **QUICK-Stop** (QUICK)\n   - Contact: Horst Kloss | Accounting Manager\n   - City: Cunewalde\n   - Address: Taucherstra\u00dfe 10, 01307\n   - Phone: 0372-035188\n\n10. **Toms Spezialit\u00e4ten** (TOMSP)\n    - Contact: Karin Josephs | Marketing Manager\n    - City: M\u00fcnster\n    - Address: Luisenstr. 48, 44087\n    - Phone: 0251-031259\n\n11. **Die Wandernde Kuh** (WANDK)\n    - Contact: Rita M\u00fcller | Sales Representative\n    - City: Stuttgart\n    - Address: Adenauerallee 900, 70563\n    - Phone: 0711-020361\n\nThere are **11 customers** from Germany in total.",
+      "expect": {
+        "max_calls": 1
+      }
+    },
+    {
+      "id": "orders_by_shipper",
+      "prompt": "Find me orders for customer ALFKI shipped via express courier",
+      "trace": [
+        {
+          "tool": "raw_get_shippers",
+          "params": {}
+        },
+        {
+          "tool": "raw_get_orders",
+          "params": {
+            "customer_id": "ALFKI",
+            "ship_via": 1
+          }
+        }
+      ],
+      "answer": "Perfect! I found **47 orders** for customer ALFKI shipped via \"Speedy Express\" (the express courier). Here's a summary:\n\n## Orders for Customer ALFKI via Speedy Express (ShipperID: 1)\n\nThe orders are distributed across various dates from 2012 to 2023. Here are some key details:\n\n**Sample Orders:**\n- **Order 10643** - Ordered: 2017-08-25, Shipped: 2017-09-02, Freight: $19.50\n- **Order 10702** - Ordered: 2017-10-13, Shipped: 2017-10-21, Freight: $15.25\n- **Order 10952** - Ordered: 2018-03-16, Shipped: 2018-03-24, Freight: $14.50\n- **Order 11011** - Ordered: 2018-04-09, Shipped: 2018-04-13, Freight: $25.00\n- **Order 12271** - Ordered: 2023-08-18, Shipped: 2023-08-22, Freight: $442.25\n- **Order 17684** - Ordered: 2023-08-21, Shipped: 2023-09-02, Freight: $521.50\n\n**Total Count:** 47 orders\n\n**Freight Range:** From $11.00 to $521.50\n\nThe orders span from 2012 to 2023 and are shipped to various destinations worldwide including Germany, USA, Brazil, Spain, France, Italy, and many other countries.\n\nWould you like more detailed information about any specific order?",
+      "expect": {
+        "max_calls": 3,
+        "answer_includes": "Speedy Express"
+      }
+    },
+    {
+      "id": "overdue_orders",
+      "prompt": "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?",
+      "trace": [
+        {
+          "tool": "raw_get_orders",
+          "params": {}
+        }
+      ],
+      "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215724 tokens > 200000 maximum'}, 'request_id': 'req_011CbFZGa1oQECYPFYRAvXWH'}",
+      "expect": {
+        "max_calls": 2
+      }
+    },
+    {
+      "id": "top_employee",
+      "prompt": "Who is our top performing employee by number of orders handled?",
+      "trace": [
+        {
+          "tool": "raw_get_employees",
+          "params": {}
+        },
+        {
+          "tool": "raw_get_orders",
+          "params": {}
+        }
+      ],
+      "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215127 tokens > 200000 maximum'}, 'request_id': 'req_011CbFZGoLF1NV3rDKrGMkW6'}",
+      "expect": {
+        "max_calls": 5
+      }
+    }
+  ]
+}

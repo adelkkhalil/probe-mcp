@@ -267,9 +267,6 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
         for task in suite["tasks"]:
             task["expect"].pop("tools_called_includes", None)
 
-    results, results_file = _run_async(run_suite(suite, tasks_file, verbose=verbose))
-    scored = [score_task(r) for r in results]
-
     if compare:
         suite2 = copy.deepcopy(suite)
         suite2["server"] = compare
@@ -277,7 +274,14 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
             for task in suite2["tasks"]:
                 task["expect"].pop("tools_called_includes", None)
 
-        results2, results_file2 = _run_async(run_suite(suite2, tasks_file, verbose=verbose))
+        async def _run_both_eval():
+            return await asyncio.gather(
+                run_suite(suite, tasks_file, verbose=verbose),
+                run_suite(suite2, tasks_file, verbose=verbose),
+            )
+
+        (results, results_file), (results2, results_file2) = _run_async(_run_both_eval())
+        scored = [score_task(r) for r in results]
         scored2 = [score_task(r) for r in results2]
 
         print_compare_table(scored, scored2, suite["server"], compare)
@@ -293,6 +297,8 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
         print_results(scored2, compare, verbose=verbose)
         console.print(f"[dim]Saved: {results_file2}[/dim]")
     else:
+        results, results_file = _run_async(run_suite(suite, tasks_file, verbose=verbose))
+        scored = [score_task(r) for r in results]
         print_results(scored, suite["server"], verbose=verbose)
         console.print(f"[dim]Saved: {results_file}[/dim]")
 
@@ -362,14 +368,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
         for task in suite["tasks"]:
             task["expect"].pop("tools_called_includes", None)
 
-    results, results_file = _run_async(run_suite(suite, tasks_file, verbose=verbose))
-    scored = [score_task(r) for r in results]
-
-    print_results(scored, suite["server"], verbose=verbose)
-    console.print(f"[dim]Saved: {results_file}[/dim]")
-
     results2_file = None
-    scored2 = None
     if compare:
         suite2 = copy.deepcopy(suite)
         suite2["server"] = compare
@@ -377,8 +376,18 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
             for task in suite2["tasks"]:
                 task["expect"].pop("tools_called_includes", None)
 
-        results2, results2_file = _run_async(run_suite(suite2, tasks_file, verbose=verbose))
+        async def _run_both_full():
+            return await asyncio.gather(
+                run_suite(suite, tasks_file, verbose=verbose),
+                run_suite(suite2, tasks_file, verbose=verbose),
+            )
+
+        (results, results_file), (results2, results2_file) = _run_async(_run_both_full())
+        scored = [score_task(r) for r in results]
         scored2 = [score_task(r) for r in results2]
+
+        print_results(scored, suite["server"], verbose=verbose)
+        console.print(f"[dim]Saved: {results_file}[/dim]")
 
         print_compare_table(scored, scored2, suite["server"], compare)
 
@@ -389,6 +398,12 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
 
         print_results(scored2, compare, verbose=verbose)
         console.print(f"[dim]Saved: {results2_file}[/dim]")
+    else:
+        results, results_file = _run_async(run_suite(suite, tasks_file, verbose=verbose))
+        scored = [score_task(r) for r in results]
+
+        print_results(scored, suite["server"], verbose=verbose)
+        console.print(f"[dim]Saved: {results_file}[/dim]")
 
     j_model = judge_model or get_judge_model(config)
     judge_dir = get_judge_dir(config)

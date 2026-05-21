@@ -1,0 +1,31 @@
+{
+  "meta": {
+    "results_file": "mcp_server_semantic_2026-05-21_14-22_claude-haiku-4-5_9a03.json",
+    "judge_model": "claude-haiku-4-5",
+    "prompt_version": "1.0",
+    "timestamp": "2026-05-21T14:22:20",
+    "run_id": "5acc"
+  },
+  "verdicts": [
+    {
+      "id": "customers_by_country",
+      "verdict": "ERROR",
+      "reason": "Judge failed: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be "
+    },
+    {
+      "id": "orders_by_shipper",
+      "verdict": "ERROR",
+      "reason": "Judge failed: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be "
+    },
+    {
+      "id": "overdue_orders",
+      "verdict": "ERROR",
+      "reason": "Judge failed: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be "
+    },
+    {
+      "id": "top_employee",
+      "verdict": "ERROR",
+      "reason": "Judge failed: \"Could not resolve authentication method. Expected one of api_key, auth_token, or credentials to be "
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+schema: spec-driven
+
+context: |
+  probe-mcp is a CLI eval harness for MCP servers.
+  Tech stack: Python 3.12, uv, FastMCP, Anthropic SDK, Rich, Click, PyYAML
+  The tool runs natural language tasks against real MCP server subprocesses
+  over stdio, scores agent behavior, and optionally judges answer quality
+  with a second LLM call.
+  Results and judge outputs are saved as JSON files with model names in filenames.
+  Entry point: probe/cli.py, alias via PROBE_CWD env var pattern.

@@ -1,26 +1,4 @@
-# Spec: Scorer
-
-## Purpose
-
-The scorer performs structural pass/fail evaluation of a single task result against its declared expectations. It is a pure function that reads the result dict and returns a scored dict without performing I/O or calling the Anthropic API.
-
-## Requirements
-
-### Requirement: Error answers short-circuit to FAIL
-
-If the task's `answer` starts with the literal prefix `"ERROR:"`, the scorer SHALL return status `"FAIL"` immediately with a single failed message and an empty passed list, skipping all other expectation checks.
-
-#### Scenario: ERROR prefix yields immediate FAIL with no checks evaluated
-
-- **WHEN** `result["answer"]` starts with `"ERROR:"`
-- **THEN** the returned dict has `"status": "FAIL"`, `"passed"` is an empty list, `"failed"` contains exactly one entry beginning with `"task errored:"`, and no expectation keys are evaluated
-
-#### Scenario: Structured error message is extracted from answer
-
-- **WHEN** the answer contains a `'message': '<text>'` pattern
-- **THEN** the failed entry extracts that text (up to 100 characters) as the error message
-
----
+## MODIFIED Requirements
 
 ### Requirement: tools_called_includes checks for tool presence
 
@@ -70,22 +48,6 @@ When `expect["deterministic"]` contains `answer_includes`, the scorer SHALL chec
 
 ---
 
-### Requirement: Status is PASS only when no checks failed
-
-The scorer SHALL set `"status"` to `"PASS"` if and only if the `failed` list is empty after evaluating all expectations. Any failure sets status to `"FAIL"`.
-
-#### Scenario: All checks pass yields PASS status
-
-- **WHEN** all expectation checks produce entries only in `passed`
-- **THEN** `"status"` is `"PASS"`
-
-#### Scenario: Any failed check yields FAIL status
-
-- **WHEN** at least one expectation check produces an entry in `failed`
-- **THEN** `"status"` is `"FAIL"`
-
----
-
 ### Requirement: Scored result contains required fields
 
 The scorer SHALL always return a dict containing `"id"`, `"status"`, `"passed"`, `"failed"`, `"call_count"`, `"answer"`, `"det_score"`, and `"pro_score"`. Non-error results additionally include `"expect"` and `"trace"`.
@@ -101,6 +63,8 @@ The scorer SHALL always return a dict containing `"id"`, `"status"`, `"passed"`,
 - **THEN** `"call_count"` in the scored dict is `4`
 
 ---
+
+## ADDED Requirements
 
 ### Requirement: det_score summarises deterministic check counts
 

@@ -4,24 +4,36 @@ tasks:
   - id: customers_by_country
     prompt: "Find me all customers from Germany"
     expect:
-      tools_called_includes: [customers_by_country]
-      max_calls: 1
+      deterministic:
+        tools_called_includes: [customers_by_country]
+        max_calls: 1
+      probabilistic:
+        judge: true
 
   - id: orders_by_shipper
     prompt: "Find me orders for customer ALFKI shipped via express courier"
     expect:
-      tools_called_includes: [shippers, orders]
-      max_calls: 3
-      answer_includes: "Speedy Express"
+      deterministic:
+        tools_called_includes: [shippers, orders]
+        max_calls: 3
+        answer_includes: "Speedy Express"
+      probabilistic:
+        judge: true
 
   - id: overdue_orders
     prompt: "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?"
     expect:
-      tools_called_includes: [orders]
-      max_calls: 2
+      deterministic:
+        tools_called_includes: [orders]
+        max_calls: 2
+      probabilistic:
+        judge: true
 
   - id: top_employee
     prompt: "Who is our top performing employee by number of orders handled?"
     expect:
-      tools_called_includes: [employees, orders]
-      max_calls: 5
+      deterministic:
+        tools_called_includes: [employees, orders]
+        max_calls: 5
+      probabilistic:
+        judge: true

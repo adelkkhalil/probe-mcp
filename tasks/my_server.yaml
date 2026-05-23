@@ -5,6 +5,9 @@ tasks:
   - id: example_task
     prompt: "Find me all customers from Germany"
     expect:
-      tools_called_includes: [get_customers]
-      max_calls: 2
-      answer_includes: "Germany"
+      deterministic:
+        tools_called_includes: [get_customers]
+        max_calls: 2
+        answer_includes: "Germany"
+      probabilistic:
+        judge: true

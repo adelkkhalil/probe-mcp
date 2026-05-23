@@ -80,9 +80,12 @@ tasks:
   - id: example_task
     prompt: "Find me all customers from Germany"
     expect:
-      tools_called_includes: [get_customers]
-      max_calls: 2
-      answer_includes: "Germany"
+      deterministic:
+        tools_called_includes: [get_customers]
+        max_calls: 2
+        answer_includes: "Germany"
+      probabilistic:
+        judge: true
 """
 
 
@@ -265,14 +268,14 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
 
     if ignore_tool_names:
         for task in suite["tasks"]:
-            task["expect"].pop("tools_called_includes", None)
+            task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
 
     if compare:
         suite2 = copy.deepcopy(suite)
         suite2["server"] = compare
         if ignore_tool_names:
             for task in suite2["tasks"]:
-                task["expect"].pop("tools_called_includes", None)
+                task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
 
         async def _run_both_eval():
             return await asyncio.gather(
@@ -335,15 +338,19 @@ def report(results_file: str, verbose: bool):
     results = data.get("results", [])
     scored = [score_task(r) for r in results]
 
-    print_results(scored, meta.get("server", "unknown"), verbose=verbose)
-
     judge_path = Path(judge_dir)
     results_stem = Path(results_file).stem
     judge_files = list(judge_path.glob(f"{results_stem}_judge_*.json")) if judge_path.exists() else []
 
+    verdicts_by_id = None
     if judge_files:
         latest = max(judge_files, key=lambda p: p.stat().st_mtime)
         judge_data = _load_json_or_exit(str(latest), "Judge file")
+        verdicts_by_id = {v["id"]: v["verdict"] for v in judge_data["verdicts"]}
+
+    print_results(scored, meta.get("server", "unknown"), verbose=verbose, verdicts=verdicts_by_id)
+
+    if judge_files:
         print_verdicts(judge_data["verdicts"], judge_data["meta"].get("judge_model", "unknown"))
     else:
         console.print("[dim](No judge file found. Run `probe-mcp judge` to add LLM verdicts.)[/dim]")
@@ -366,7 +373,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
 
     if ignore_tool_names:
         for task in suite["tasks"]:
-            task["expect"].pop("tools_called_includes", None)
+            task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
 
     results2_file = None
     if compare:
@@ -374,7 +381,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
         suite2["server"] = compare
         if ignore_tool_names:
             for task in suite2["tasks"]:
-                task["expect"].pop("tools_called_includes", None)
+                task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
 
         async def _run_both_full():
             return await asyncio.gather(
@@ -386,23 +393,17 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
         scored = [score_task(r) for r in results]
         scored2 = [score_task(r) for r in results2]
 
-        print_results(scored, suite["server"], verbose=verbose)
-        console.print(f"[dim]Saved: {results_file}[/dim]")
-
         print_compare_table(scored, scored2, suite["server"], compare)
 
         passed = sum(1 for r in scored if r["status"] == "PASS")
         passed2 = sum(1 for r in scored2 if r["status"] == "PASS")
         total = len(scored)
         console.print(f"[bold]{suite['server']}[/bold]: {passed}/{total}    [bold]{compare}[/bold]: {passed2}/{total}")
-
-        print_results(scored2, compare, verbose=verbose)
+        console.print(f"[dim]Saved: {results_file}[/dim]")
         console.print(f"[dim]Saved: {results2_file}[/dim]")
     else:
         results, results_file = _run_async(run_suite(suite, tasks_file, verbose=verbose))
         scored = [score_task(r) for r in results]
-
-        print_results(scored, suite["server"], verbose=verbose)
         console.print(f"[dim]Saved: {results_file}[/dim]")
 
     j_model = judge_model or get_judge_model(config)
@@ -411,7 +412,9 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
     judge_file = _run_async(judge_results_file(results_file, j_model, judge_dir))
     with open(judge_file) as f:
         judge_data = json.load(f)
+    verdicts_by_id = {v["id"]: v["verdict"] for v in judge_data["verdicts"]}
 
+    print_results(scored, suite["server"], verbose=verbose, verdicts=verdicts_by_id)
     print_verdicts(judge_data["verdicts"], j_model)
     console.print(f"[dim]Saved: {judge_file}[/dim]")
 
@@ -419,7 +422,9 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
         judge_file2 = _run_async(judge_results_file(results2_file, j_model, judge_dir))
         with open(judge_file2) as f:
             judge_data2 = json.load(f)
+        verdicts2_by_id = {v["id"]: v["verdict"] for v in judge_data2["verdicts"]}
 
+        print_results(scored2, compare, verbose=verbose, verdicts=verdicts2_by_id)
         print_verdicts(judge_data2["verdicts"], j_model)
         console.print(f"[dim]Saved: {judge_file2}[/dim]")
 

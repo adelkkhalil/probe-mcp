@@ -31,7 +31,28 @@ def _verdict_cell(verdict: str) -> Text:
     return Text(label, style=style)
 
 
-def print_results(scored: list, server_name: str, verbose: bool = False):
+def _det_cell(det_score: dict) -> str:
+    return f"{det_score['passed']}/{det_score['total']}"
+
+
+def _pro_cell(pro_score, task_id: str, verdicts: dict | None) -> Text:
+    if pro_score is None:
+        return Text("—", style="dim")
+    if pro_score == "pending":
+        if verdicts and task_id in verdicts:
+            return _pro_cell(verdicts[task_id], task_id, None)
+        return Text("—", style="dim")
+    mapping = {
+        "PASS": ("✓ PASS (judge)", "bold green"),
+        "PARTIAL": ("~ PARTIAL (judge)", "bold blue"),
+        "FAIL": ("✗ FAIL (judge)", "bold red"),
+        "ERROR": ("! ERROR (judge)", "bold yellow"),
+    }
+    label, style = mapping.get(pro_score, (f"{pro_score} (judge)", "white"))
+    return Text(label, style=style)
+
+
+def print_results(scored: list, server_name: str, verbose: bool = False, verdicts: dict | None = None):
     total = len(scored)
     passed = sum(1 for r in scored if r["status"] == "PASS")
 
@@ -41,6 +62,8 @@ def print_results(scored: list, server_name: str, verbose: bool = False):
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
     table.add_column("Task", style="cyan", no_wrap=True)
     table.add_column("Status")
+    table.add_column("Det", justify="right")
+    table.add_column("Pro")
     table.add_column("Calls", justify="right")
     table.add_column("Answer")
 
@@ -68,7 +91,15 @@ def print_results(scored: list, server_name: str, verbose: bool = False):
                     truncated = truncated[:80] + "..."
             answer_cell = truncated
 
-        table.add_row(r["id"], _status_cell(r["status"]), str(r["call_count"]), answer_cell)
+        det = r.get("det_score", {"passed": 0, "total": 0})
+        table.add_row(
+            r["id"],
+            _status_cell(r["status"]),
+            _det_cell(det),
+            _pro_cell(r.get("pro_score"), r["id"], verdicts),
+            str(r["call_count"]),
+            answer_cell,
+        )
 
     console.print(table)
 

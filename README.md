@@ -275,7 +275,7 @@ Prints structural results and judge verdicts together. Automatically finds the m
 
 ## Writing tasks
 
-Task files are YAML. Each task has a prompt and a set of expectations:
+Task files are YAML. Each task has a prompt and a set of expectations split into two named sections:
 
 ```yaml
 server: mcp_server_semantic.py
@@ -284,16 +284,25 @@ tasks:
   - id: find_orders
     prompt: "Find orders for customer ALFKI shipped via express courier"
     expect:
-      tools_called_includes: [shippers, orders]
-      max_calls: 3
-      answer_includes: "Speedy Express"
+      deterministic:
+        tools_called_includes: [shippers, orders]
+        max_calls: 3
+        answer_includes: "Speedy Express"
+      probabilistic:
+        judge: true
 ```
 
-Available expectations:
+**`expect.deterministic`** — checks that run mechanically from the tool call trace, no LLM needed:
 
 - `tools_called_includes` — tool names that must appear in the trace
 - `max_calls` — maximum number of tool calls allowed
-- `answer_includes` — string that must appear in the final answer
+- `answer_includes` — string that must appear in the final answer (case-insensitive)
+
+**`expect.probabilistic`** — checks that require judgment:
+
+- `judge: true` — runs the LLM judge on this task's answer (requires `probe-mcp judge` or `probe-mcp full`)
+
+Both sections are optional. A task with only `deterministic` checks skips the judge. A task with only `probabilistic: {judge: true}` runs the judge with no structural checks.
 
 ---
 

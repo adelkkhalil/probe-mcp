@@ -1,3 +1,4 @@
+import warnings
 from pathlib import Path
 
 import yaml
@@ -53,16 +54,46 @@ def load_tasks(path: str) -> dict:
             raise ValueError(f"{where}: missing dict 'expect'")
 
         expect = task["expect"]
-        if "tools_called_includes" in expect:
-            value = expect["tools_called_includes"]
+
+        if "deterministic" in expect and not isinstance(expect["deterministic"], dict):
+            raise ValueError(f"{where}: 'expect.deterministic' must be a dict")
+        if "probabilistic" in expect and not isinstance(expect["probabilistic"], dict):
+            raise ValueError(f"{where}: 'expect.probabilistic' must be a dict")
+
+        if isinstance(expect.get("probabilistic"), dict):
+            if "judge" in expect["probabilistic"] and not isinstance(
+                expect["probabilistic"]["judge"], bool
+            ):
+                raise ValueError(f"{where}: 'expect.probabilistic.judge' must be a boolean")
+
+        det = expect.get("deterministic", {})
+        if "tools_called_includes" in det:
+            value = det["tools_called_includes"]
             if not isinstance(value, list) or not all(isinstance(t, str) for t in value):
-                raise ValueError(f"{where}: 'tools_called_includes' must be a list of strings")
-        if "max_calls" in expect:
-            value = expect["max_calls"]
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.tools_called_includes' must be a list of strings"
+                )
+        if "max_calls" in det:
+            value = det["max_calls"]
             if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-                raise ValueError(f"{where}: 'max_calls' must be a non-negative integer")
-        if "answer_includes" in expect:
-            if not isinstance(expect["answer_includes"], str):
-                raise ValueError(f"{where}: 'answer_includes' must be a string")
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.max_calls' must be a non-negative integer"
+                )
+        if "answer_includes" in det:
+            if not isinstance(det["answer_includes"], str):
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.answer_includes' must be a string"
+                )
+
+        _LEGACY_KEYS = {"tools_called_includes", "max_calls", "answer_includes"}
+        flat_keys = _LEGACY_KEYS & set(expect)
+        if flat_keys:
+            key_list = ", ".join(sorted(flat_keys))
+            warnings.warn(
+                f"Task '{task_id}': expect keys [{key_list}] should be nested under"
+                " 'expect.deterministic'",
+                UserWarning,
+                stacklevel=2,
+            )
 
     return data

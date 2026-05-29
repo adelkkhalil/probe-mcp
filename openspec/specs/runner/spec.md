@@ -65,6 +65,22 @@ When the API response has `stop_reason == "tool_use"`, the runner SHALL dispatch
 
 ---
 
+### Requirement: run_suite prints a Running: line for each task and mirrors it to log_console when provided
+
+For each task in the suite, `run_suite` SHALL print `Running: {task_id}` using a Rich Console before invoking `run_task`. When called with a non-None `log_console` parameter, this line SHALL also be written to `log_console`. When `log_console` is `None`, output goes only to the terminal console.
+
+#### Scenario: Running: line appears in log file when log_console is provided
+
+- **WHEN** `run_suite(suite, tasks_file, log_console=lc)` is called
+- **THEN** each `Running: <task_id>` line is written to both the terminal console and `lc`
+
+#### Scenario: run_suite is unchanged when log_console is None
+
+- **WHEN** `run_suite(suite, tasks_file)` is called without `log_console`
+- **THEN** `Running:` lines go only to the terminal console, identical to previous behaviour
+
+---
+
 ### Requirement: trials support runs a task N times when trials > 1
 
 When a task's `expect["deterministic"]` contains `trials` with a value greater than 1, the runner SHALL execute `run_task` exactly N times for that task. Each execution produces an independent `{trace, answer}` result. The aggregated result stored in the results list SHALL contain:

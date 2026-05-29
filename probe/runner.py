@@ -9,8 +9,11 @@ from pathlib import Path
 from anthropic import Anthropic
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from rich.console import Console
 
 from probe.config import get_agent_model, get_max_tokens, get_results_dir, load_config
+
+_console = Console()
 
 config = load_config()
 client = Anthropic()
@@ -106,7 +109,13 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
     return {"trace": trace, "answer": final_answer}
 
 
-async def run_suite(suite: dict, tasks_file: str = "", verbose: bool = False) -> tuple[list, str]:
+async def run_suite(
+    suite: dict,
+    tasks_file: str = "",
+    verbose: bool = False,
+    log_console: Console | None = None,
+    run_id: str | None = None,
+) -> tuple[list, str]:
     """Run all tasks in a suite against the MCP server."""
     server_path = suite["server"]
 
@@ -133,7 +142,9 @@ async def run_suite(suite: dict, tasks_file: str = "", verbose: bool = False) ->
 
             for task in suite["tasks"]:
                 trials_count = task["expect"].get("deterministic", {}).get("trials", 1)
-                print(f"Running: {task['id']}")
+                _console.print(f"Running: {task['id']}")
+                if log_console:
+                    log_console.print(f"Running: {task['id']}")
                 if trials_count > 1:
                     trial_results = []
                     for _ in range(trials_count):
@@ -164,7 +175,7 @@ async def run_suite(suite: dict, tasks_file: str = "", verbose: bool = False) ->
     now = datetime.now()
     server_stem = Path(server_path).stem
     timestamp = now.strftime("%Y-%m-%d_%H-%M")
-    run_id = secrets.token_hex(2)
+    run_id = run_id or secrets.token_hex(2)
     filename = f"{server_stem}_{timestamp}_{agent_model}_{run_id}.json"
     filepath = Path(results_dir) / filename
 

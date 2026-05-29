@@ -71,7 +71,12 @@ async def judge_task(task_id: str, task_prompt: str, trace: list, answer: str, j
     return {"id": task_id, "verdict": verdict, "reason": reason}
 
 
-async def judge_results_file(results_path: str, judge_model: str, judge_dir: str) -> str:
+async def judge_results_file(
+    results_path: str,
+    judge_model: str,
+    judge_dir: str,
+    log_console: Console | None = None,
+) -> str:
     try:
         with open(results_path) as f:
             data = json.load(f)
@@ -97,6 +102,8 @@ async def judge_results_file(results_path: str, judge_model: str, judge_dir: str
         )
         verdicts.append(verdict)
         _console.print(f"[dim]Judged: {result['id']}[/dim] → {verdict['verdict']}")
+        if log_console:
+            log_console.print(f"Judged: {result['id']} → {verdict['verdict']}")
 
     Path(judge_dir).mkdir(parents=True, exist_ok=True)
     results_stem = Path(results_path).stem

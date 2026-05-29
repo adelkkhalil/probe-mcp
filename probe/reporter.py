@@ -63,12 +63,28 @@ def _pro_cell(pro_score, task_id: str, verdicts: dict | None) -> Text:
     return Text(label, style=style)
 
 
-def print_results(scored: list, server_name: str, verbose: bool = False, verdicts: dict | None = None):
+def print_results(
+    scored: list,
+    server_name: str,
+    verbose: bool = False,
+    verdicts: dict | None = None,
+    log_console: Console | None = None,
+):
+    def _print(*args, **kw):
+        console.print(*args, **kw)
+        if log_console:
+            log_console.print(*args, **kw)
+
+    def _rule(*args, **kw):
+        console.rule(*args, **kw)
+        if log_console:
+            log_console.rule(*args, **kw)
+
     total = len(scored)
     passed = sum(1 for r in scored if r["status"] == "PASS")
 
-    console.rule(f"[bold]{server_name}[/bold]")
-    console.print(f"\n[bold]Results: {passed}/{total} passed[/bold]\n")
+    _rule(f"[bold]{server_name}[/bold]")
+    _print(f"\n[bold]Results: {passed}/{total} passed[/bold]\n")
 
     show_consistency = any("consistency_score" in r for r in scored)
 
@@ -119,36 +135,46 @@ def print_results(scored: list, server_name: str, verbose: bool = False, verdict
         row.extend([str(r["call_count"]), answer_cell])
         table.add_row(*row)
 
-    console.print(table)
+    _print(table)
 
     if verbose:
         for r in scored:
             if not r["answer"].startswith("ERROR:"):
                 for msg in r["failed"]:
-                    console.print(f"  [bold red]FAIL ({r['id']}): {msg}[/bold red]")
+                    _print(f"  [bold red]FAIL ({r['id']}): {msg}[/bold red]")
             for msg in r["passed"]:
-                console.print(f"  [dim green]pass ({r['id']}): {msg}[/dim green]")
+                _print(f"  [dim green]pass ({r['id']}): {msg}[/dim green]")
 
-        console.print()
-        console.print("[bold]Answers:[/bold]")
+        _print()
+        _print("[bold]Answers:[/bold]")
         for r in scored:
-            console.print(f"  [cyan]{r['id']}:[/cyan]")
+            _print(f"  [cyan]{r['id']}:[/cyan]")
             answer = r["answer"]
             if answer.startswith("ERROR:"):
                 match = re.search(r"'message': '([^']+)'", answer)
                 text = match.group(1) if match else answer[7:]
                 for line in text.splitlines():
-                    console.print(f"    [bold red]{line}[/bold red]")
+                    _print(f"    [bold red]{line}[/bold red]")
             else:
                 for line in answer.splitlines():
-                    console.print(f"    {line}")
+                    _print(f"    {line}")
 
-    console.print()
+    _print()
 
 
-def print_verdicts(verdicts: list, judge_model: str):
-    console.rule(f"[bold]Judge Verdicts[/bold] [dim]({judge_model})[/dim]")
-    console.print()
+def print_verdicts(verdicts: list, judge_model: str, log_console: Console | None = None):
+    def _print(*args, **kw):
+        console.print(*args, **kw)
+        if log_console:
+            log_console.print(*args, **kw)
+
+    def _rule(*args, **kw):
+        console.rule(*args, **kw)
+        if log_console:
+            log_console.rule(*args, **kw)
+
+    _rule(f"[bold]Judge Verdicts[/bold] [dim]({judge_model})[/dim]")
+    _print()
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
     table.add_column("Task", style="cyan", no_wrap=True)
@@ -158,8 +184,8 @@ def print_verdicts(verdicts: list, judge_model: str):
     for v in verdicts:
         table.add_row(v["id"], _verdict_cell(v["verdict"]), v.get("reason", ""))
 
-    console.print(table)
-    console.print()
+    _print(table)
+    _print()
 
 
 def _compare_cell(r: dict | None) -> Text:
@@ -176,11 +202,27 @@ def _compare_cell(r: dict | None) -> Text:
     return Text(f"{label} ({r['call_count']})", style=style)
 
 
-def print_compare_table(scored1: list, scored2: list, server1_name: str, server2_name: str):
+def print_compare_table(
+    scored1: list,
+    scored2: list,
+    server1_name: str,
+    server2_name: str,
+    log_console: Console | None = None,
+):
+    def _print(*args, **kw):
+        console.print(*args, **kw)
+        if log_console:
+            log_console.print(*args, **kw)
+
+    def _rule(*args, **kw):
+        console.rule(*args, **kw)
+        if log_console:
+            log_console.rule(*args, **kw)
+
     scored2_by_id = {r["id"]: r for r in scored2}
 
-    console.rule("[bold]Comparison[/bold]")
-    console.print()
+    _rule("[bold]Comparison[/bold]")
+    _print()
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
     table.add_column("Task", style="cyan", no_wrap=True)
@@ -191,5 +233,5 @@ def print_compare_table(scored1: list, scored2: list, server1_name: str, server2
         r2 = scored2_by_id.get(r1["id"])
         table.add_row(r1["id"], _compare_cell(r1), _compare_cell(r2))
 
-    console.print(table)
-    console.print()
+    _print(table)
+    _print()

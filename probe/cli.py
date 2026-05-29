@@ -2,10 +2,14 @@ import asyncio
 import copy
 import json
 import os
+import secrets
+from datetime import datetime
 from pathlib import Path
+from typing import IO
 
 import click
 from rich import box
+from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -71,6 +75,29 @@ def _load_json_or_exit(path: str, label: str) -> dict:
         raise click.ClickException(f"{label} not found: {path}")
     except json.JSONDecodeError as e:
         raise click.ClickException(f"{label} is not valid JSON ({path}): {e}")
+
+
+def _make_log_console(
+    log_dir: str | None,
+    results_path: str,
+    suffix: str = "",
+) -> tuple[Console | None, IO | None]:
+    """Open a plain-text log file and return (log_console, file_handle).
+
+    Returns (None, None) when log_dir is None (logging disabled).
+    log_dir="" means use the same directory as results_path.
+    """
+    if log_dir is None:
+        return None, None
+
+    target_dir = Path(log_dir) if log_dir else Path(results_path).parent
+    target_dir.mkdir(parents=True, exist_ok=True)
+    log_filename = Path(results_path).stem + suffix + ".log"
+    log_path = target_dir / log_filename
+    fp = open(log_path, "w", encoding="utf-8")
+    lc = Console(file=fp, highlight=False)
+    return lc, fp
+
 
 _SAMPLE_TASKS = """\
 # MCP server to test
@@ -259,7 +286,11 @@ def status():
 @click.option("--ignore-tool-names", is_flag=True, default=False, help="Skip tool name checks")
 @click.option("--compare", default=None, help="Second server to run tasks against for comparison")
 @click.option("--verbose", is_flag=True, default=False, help="Show MCP server output and full answers")
-def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, verbose: bool):
+@click.option(
+    "--log", "log_dir", default=None, is_flag=False, flag_value="",
+    metavar="[DIR]", help="Write plain-text log to DIR (default: alongside results)",
+)
+def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, verbose: bool, log_dir: str | None):
     """Run an eval suite against an MCP server."""
     suite = _load_tasks_or_exit(tasks_file)
 
@@ -270,6 +301,9 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
         for task in suite["tasks"]:
             task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
 
+    # Pre-generate run_id so log filename can match results filename
+    pre_run_id = secrets.token_hex(2) if log_dir is not None else None
+
     if compare:
         suite2 = copy.deepcopy(suite)
         suite2["server"] = compare
@@ -277,57 +311,101 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
             for task in suite2["tasks"]:
                 task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
 
+        pre_run_id2 = secrets.token_hex(2) if log_dir is not None else None
+
         async def _run_both_eval():
             return await asyncio.gather(
-                run_suite(suite, tasks_file, verbose=verbose),
-                run_suite(suite2, tasks_file, verbose=verbose),
+                run_suite(suite, tasks_file, verbose=verbose, run_id=pre_run_id),
+                run_suite(suite2, tasks_file, verbose=verbose, run_id=pre_run_id2),
             )
 
         (results, results_file), (results2, results_file2) = _run_async(_run_both_eval())
         scored = [score_task(r) for r in results]
         scored2 = [score_task(r) for r in results2]
 
-        print_compare_table(scored, scored2, suite["server"], compare)
+        lc, fp = _make_log_console(log_dir, results_file)
+        lc2, fp2 = _make_log_console(log_dir, results_file2)
+        try:
+            print_compare_table(scored, scored2, suite["server"], compare, log_console=lc)
 
-        passed = sum(1 for r in scored if r["status"] == "PASS")
-        passed2 = sum(1 for r in scored2 if r["status"] == "PASS")
-        total = len(scored)
-        console.print(f"[bold]{suite['server']}[/bold]: {passed}/{total}    [bold]{compare}[/bold]: {passed2}/{total}")
+            passed = sum(1 for r in scored if r["status"] == "PASS")
+            passed2 = sum(1 for r in scored2 if r["status"] == "PASS")
+            total = len(scored)
+            console.print(f"[bold]{suite['server']}[/bold]: {passed}/{total}    [bold]{compare}[/bold]: {passed2}/{total}")
+            if lc:
+                lc.print(f"{suite['server']}: {passed}/{total}    {compare}: {passed2}/{total}")
 
-        print_results(scored, suite["server"], verbose=verbose)
-        console.print(f"[dim]Saved: {results_file}[/dim]")
+            print_results(scored, suite["server"], verbose=verbose, log_console=lc)
+            console.print(f"[dim]Saved: {results_file}[/dim]")
+            if lc:
+                lc.print(f"Saved: {results_file}")
 
-        print_results(scored2, compare, verbose=verbose)
-        console.print(f"[dim]Saved: {results_file2}[/dim]")
+            print_results(scored2, compare, verbose=verbose, log_console=lc2)
+            console.print(f"[dim]Saved: {results_file2}[/dim]")
+            if lc2:
+                lc2.print(f"Saved: {results_file2}")
+        finally:
+            if fp:
+                fp.close()
+            if fp2:
+                fp2.close()
     else:
-        results, results_file = _run_async(run_suite(suite, tasks_file, verbose=verbose))
+        results, results_file = _run_async(
+            run_suite(suite, tasks_file, verbose=verbose, run_id=pre_run_id)
+        )
         scored = [score_task(r) for r in results]
-        print_results(scored, suite["server"], verbose=verbose)
-        console.print(f"[dim]Saved: {results_file}[/dim]")
+
+        lc, fp = _make_log_console(log_dir, results_file)
+        try:
+            print_results(scored, suite["server"], verbose=verbose, log_console=lc)
+            console.print(f"[dim]Saved: {results_file}[/dim]")
+            if lc:
+                lc.print(f"Saved: {results_file}")
+        finally:
+            if fp:
+                fp.close()
 
 
 @cli.command()
 @click.argument("results_file")
 @click.option("--model", default=None, help="Override judge model from config")
-def judge(results_file: str, model: str):
+@click.option(
+    "--log", "log_dir", default=None, is_flag=False, flag_value="",
+    metavar="[DIR]", help="Write plain-text log to DIR (default: alongside results)",
+)
+def judge(results_file: str, model: str, log_dir: str | None):
     """Run the LLM judge on a results file."""
     config = load_config()
     judge_model = model or get_judge_model(config)
     judge_dir = get_judge_dir(config)
 
-    output_file = _run_async(judge_results_file(results_file, judge_model, judge_dir))
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    lc, fp = _make_log_console(log_dir, results_file, suffix=f"_judge_{timestamp}")
+    try:
+        output_file = _run_async(
+            judge_results_file(results_file, judge_model, judge_dir, log_console=lc)
+        )
 
-    with open(output_file) as f:
-        data = json.load(f)
+        with open(output_file) as f:
+            data = json.load(f)
 
-    print_verdicts(data["verdicts"], judge_model)
-    console.print(f"[dim]Saved: {output_file}[/dim]")
+        print_verdicts(data["verdicts"], judge_model, log_console=lc)
+        console.print(f"[dim]Saved: {output_file}[/dim]")
+        if lc:
+            lc.print(f"Saved: {output_file}")
+    finally:
+        if fp:
+            fp.close()
 
 
 @cli.command()
 @click.argument("results_file")
 @click.option("--verbose", is_flag=True, default=False, help="Show full answers and detail lines")
-def report(results_file: str, verbose: bool):
+@click.option(
+    "--log", "log_dir", default=None, is_flag=False, flag_value="",
+    metavar="[DIR]", help="Write plain-text log to DIR (default: alongside results)",
+)
+def report(results_file: str, verbose: bool, log_dir: str | None):
     """Print a combined report for a results file, including judge verdicts if available."""
     config = load_config()
     judge_dir = get_judge_dir(config)
@@ -343,17 +421,27 @@ def report(results_file: str, verbose: bool):
     judge_files = list(judge_path.glob(f"{results_stem}_judge_*.json")) if judge_path.exists() else []
 
     verdicts_by_id = None
+    judge_data = None
     if judge_files:
         latest = max(judge_files, key=lambda p: p.stat().st_mtime)
         judge_data = _load_json_or_exit(str(latest), "Judge file")
         verdicts_by_id = {v["id"]: v["verdict"] for v in judge_data["verdicts"]}
 
-    print_results(scored, meta.get("server", "unknown"), verbose=verbose, verdicts=verdicts_by_id)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M")
+    lc, fp = _make_log_console(log_dir, results_file, suffix=f"_report_{timestamp}")
+    try:
+        print_results(scored, meta.get("server", "unknown"), verbose=verbose, verdicts=verdicts_by_id, log_console=lc)
 
-    if judge_files:
-        print_verdicts(judge_data["verdicts"], judge_data["meta"].get("judge_model", "unknown"))
-    else:
-        console.print("[dim](No judge file found. Run `probe-mcp judge` to add LLM verdicts.)[/dim]")
+        if judge_data:
+            print_verdicts(judge_data["verdicts"], judge_data["meta"].get("judge_model", "unknown"), log_console=lc)
+        else:
+            msg = "[dim](No judge file found. Run `probe-mcp judge` to add LLM verdicts.)[/dim]"
+            console.print(msg)
+            if lc:
+                lc.print("(No judge file found. Run `probe-mcp judge` to add LLM verdicts.)")
+    finally:
+        if fp:
+            fp.close()
 
 
 @cli.command()
@@ -363,7 +451,11 @@ def report(results_file: str, verbose: bool):
 @click.option("--compare", default=None, help="Second server to run tasks against for comparison")
 @click.option("--judge-model", default=None, help="Override judge model from config")
 @click.option("--verbose", is_flag=True, default=False, help="Show MCP server output and full answers")
-def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, judge_model: str, verbose: bool):
+@click.option(
+    "--log", "log_dir", default=None, is_flag=False, flag_value="",
+    metavar="[DIR]", help="Write plain-text log to DIR (default: alongside results)",
+)
+def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, judge_model: str, verbose: bool, log_dir: str | None):
     """Run eval, then judge, then report in sequence."""
     config = load_config()
     suite = _load_tasks_or_exit(tasks_file)
@@ -375,6 +467,8 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
         for task in suite["tasks"]:
             task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
 
+    pre_run_id = secrets.token_hex(2) if log_dir is not None else None
+
     results2_file = None
     if compare:
         suite2 = copy.deepcopy(suite)
@@ -383,50 +477,75 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
             for task in suite2["tasks"]:
                 task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
 
+        pre_run_id2 = secrets.token_hex(2) if log_dir is not None else None
+
         async def _run_both_full():
             return await asyncio.gather(
-                run_suite(suite, tasks_file, verbose=verbose),
-                run_suite(suite2, tasks_file, verbose=verbose),
+                run_suite(suite, tasks_file, verbose=verbose, run_id=pre_run_id),
+                run_suite(suite2, tasks_file, verbose=verbose, run_id=pre_run_id2),
             )
 
         (results, results_file), (results2, results2_file) = _run_async(_run_both_full())
         scored = [score_task(r) for r in results]
         scored2 = [score_task(r) for r in results2]
 
-        print_compare_table(scored, scored2, suite["server"], compare)
-
-        passed = sum(1 for r in scored if r["status"] == "PASS")
-        passed2 = sum(1 for r in scored2 if r["status"] == "PASS")
-        total = len(scored)
-        console.print(f"[bold]{suite['server']}[/bold]: {passed}/{total}    [bold]{compare}[/bold]: {passed2}/{total}")
-        console.print(f"[dim]Saved: {results_file}[/dim]")
-        console.print(f"[dim]Saved: {results2_file}[/dim]")
+        lc, fp = _make_log_console(log_dir, results_file)
+        lc2, fp2 = _make_log_console(log_dir, results2_file)
     else:
-        results, results_file = _run_async(run_suite(suite, tasks_file, verbose=verbose))
+        results, results_file = _run_async(
+            run_suite(suite, tasks_file, verbose=verbose, run_id=pre_run_id)
+        )
         scored = [score_task(r) for r in results]
-        console.print(f"[dim]Saved: {results_file}[/dim]")
+        lc, fp = _make_log_console(log_dir, results_file)
+        lc2, fp2 = None, None
 
-    j_model = judge_model or get_judge_model(config)
-    judge_dir = get_judge_dir(config)
+    try:
+        if compare and results2_file:
+            print_compare_table(scored, scored2, suite["server"], compare, log_console=lc)
 
-    judge_file = _run_async(judge_results_file(results_file, j_model, judge_dir))
-    with open(judge_file) as f:
-        judge_data = json.load(f)
-    verdicts_by_id = {v["id"]: v["verdict"] for v in judge_data["verdicts"]}
+            passed = sum(1 for r in scored if r["status"] == "PASS")
+            passed2 = sum(1 for r in scored2 if r["status"] == "PASS")
+            total = len(scored)
+            console.print(f"[bold]{suite['server']}[/bold]: {passed}/{total}    [bold]{compare}[/bold]: {passed2}/{total}")
+            if lc:
+                lc.print(f"{suite['server']}: {passed}/{total}    {compare}: {passed2}/{total}")
+            console.print(f"[dim]Saved: {results_file}[/dim]")
+            if lc:
+                lc.print(f"Saved: {results_file}")
+            console.print(f"[dim]Saved: {results2_file}[/dim]")
+            if lc2:
+                lc2.print(f"Saved: {results2_file}")
 
-    print_results(scored, suite["server"], verbose=verbose, verdicts=verdicts_by_id)
-    print_verdicts(judge_data["verdicts"], j_model)
-    console.print(f"[dim]Saved: {judge_file}[/dim]")
+        j_model = judge_model or get_judge_model(config)
+        judge_dir = get_judge_dir(config)
 
-    if compare and results2_file:
-        judge_file2 = _run_async(judge_results_file(results2_file, j_model, judge_dir))
-        with open(judge_file2) as f:
-            judge_data2 = json.load(f)
-        verdicts2_by_id = {v["id"]: v["verdict"] for v in judge_data2["verdicts"]}
+        judge_file = _run_async(judge_results_file(results_file, j_model, judge_dir, log_console=lc))
+        with open(judge_file) as f:
+            judge_data = json.load(f)
+        verdicts_by_id = {v["id"]: v["verdict"] for v in judge_data["verdicts"]}
 
-        print_results(scored2, compare, verbose=verbose, verdicts=verdicts2_by_id)
-        print_verdicts(judge_data2["verdicts"], j_model)
-        console.print(f"[dim]Saved: {judge_file2}[/dim]")
+        print_results(scored, suite["server"], verbose=verbose, verdicts=verdicts_by_id, log_console=lc)
+        print_verdicts(judge_data["verdicts"], j_model, log_console=lc)
+        console.print(f"[dim]Saved: {judge_file}[/dim]")
+        if lc:
+            lc.print(f"Saved: {judge_file}")
+
+        if compare and results2_file:
+            judge_file2 = _run_async(judge_results_file(results2_file, j_model, judge_dir, log_console=lc2))
+            with open(judge_file2) as f:
+                judge_data2 = json.load(f)
+            verdicts2_by_id = {v["id"]: v["verdict"] for v in judge_data2["verdicts"]}
+
+            print_results(scored2, compare, verbose=verbose, verdicts=verdicts2_by_id, log_console=lc2)
+            print_verdicts(judge_data2["verdicts"], j_model, log_console=lc2)
+            console.print(f"[dim]Saved: {judge_file2}[/dim]")
+            if lc2:
+                lc2.print(f"Saved: {judge_file2}")
+    finally:
+        if fp:
+            fp.close()
+        if fp2:
+            fp2.close()
 
 
 if __name__ == "__main__":

@@ -84,6 +84,56 @@ def load_tasks(path: str) -> dict:
                 raise ValueError(
                     f"{where}: 'expect.deterministic.answer_includes' must be a string"
                 )
+        if "tools_called_excludes" in det:
+            value = det["tools_called_excludes"]
+            if not isinstance(value, list) or not all(isinstance(t, str) for t in value):
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.tools_called_excludes' must be a list of strings"
+                )
+        if "tool_called_count" in det:
+            value = det["tool_called_count"]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.tool_called_count' must be a non-negative integer"
+                )
+        if "tool_params_include" in det:
+            value = det["tool_params_include"]
+            if not isinstance(value, dict):
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.tool_params_include' must be a dict"
+                )
+            tool_name = value.get("tool")
+            if not isinstance(tool_name, str) or not tool_name.strip():
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.tool_params_include.tool' must be a non-empty string"
+                )
+            params = value.get("params")
+            if not isinstance(params, list) or not all(isinstance(p, str) for p in params):
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.tool_params_include.params' must be a list of strings"
+                )
+        if "answer_excludes" in det:
+            if not isinstance(det["answer_excludes"], str):
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.answer_excludes' must be a string"
+                )
+        if "no_error" in det:
+            if det["no_error"] is not True:
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.no_error' must be boolean true"
+                )
+        if "tools_called_sequence" in det:
+            value = det["tools_called_sequence"]
+            if not isinstance(value, list) or not all(isinstance(t, str) for t in value):
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.tools_called_sequence' must be a list of strings"
+                )
+        if "trials" in det:
+            value = det["trials"]
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(
+                    f"{where}: 'expect.deterministic.trials' must be a positive integer"
+                )
 
         _LEGACY_KEYS = {"tools_called_includes", "max_calls", "answer_includes"}
         flat_keys = _LEGACY_KEYS & set(expect)

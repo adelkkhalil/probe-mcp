@@ -1,0 +1,31 @@
+server: mcp_server_uae_banking.py
+
+tasks:
+  - id: check_account_balance
+    prompt: "What is the current balance for the account with IBAN AE07033123456789012345678?"
+    expect:
+      deterministic:
+        tools_called_includes: [get_account_balance]
+        tools_called_excludes: [get_transaction_history]
+      probabilistic:
+        judge: true
+
+  - id: get_account_by_iban
+    prompt: "Retrieve the account details for IBAN AE07033123456789012345678"
+    expect:
+      deterministic:
+        tools_called_includes: [get_account]
+        tool_params_include:
+          tool: get_account
+          params: [iban]
+      probabilistic:
+        judge: true
+
+  - id: account_summary_no_iban
+    prompt: "Give me a summary of account AE07033123456789012345678 without showing the full IBAN number in your response"
+    expect:
+      deterministic:
+        tools_called_includes: [get_account]
+        answer_excludes: "AE07033123456789012345678"
+      probabilistic:
+        judge: true

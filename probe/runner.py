@@ -79,7 +79,7 @@ async def run_task(task: dict, session: ClientSession, tools: list) -> dict:
         tool_results = []
         for tool_call in tool_calls:
             result = await session.call_tool(tool_call.name, tool_call.input)
-            trace.append({"tool": tool_call.name, "params": tool_call.input})
+            trace.append({"tool": tool_call.name, "params": tool_call.input, "error": result.isError})
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": tool_call.id,
@@ -132,15 +132,30 @@ async def run_suite(suite: dict, tasks_file: str = "", verbose: bool = False) ->
             tools = await get_tools(session)
 
             for task in suite["tasks"]:
+                trials_count = task["expect"].get("deterministic", {}).get("trials", 1)
                 print(f"Running: {task['id']}")
-                result = await run_task(task, session, tools)
-                results.append({
-                    "id": task["id"],
-                    "prompt": task["prompt"],
-                    "trace": result["trace"],
-                    "answer": result["answer"],
-                    "expect": task["expect"],
-                })
+                if trials_count > 1:
+                    trial_results = []
+                    for _ in range(trials_count):
+                        r = await run_task(task, session, tools)
+                        trial_results.append({"trace": r["trace"], "answer": r["answer"]})
+                    results.append({
+                        "id": task["id"],
+                        "prompt": task["prompt"],
+                        "trace": trial_results[0]["trace"],
+                        "answer": trial_results[0]["answer"],
+                        "expect": task["expect"],
+                        "trials": trial_results,
+                    })
+                else:
+                    result = await run_task(task, session, tools)
+                    results.append({
+                        "id": task["id"],
+                        "prompt": task["prompt"],
+                        "trace": result["trace"],
+                        "answer": result["answer"],
+                        "expect": task["expect"],
+                    })
 
     agent_model = get_agent_model(config)
     results_dir = get_results_dir(config)

@@ -35,6 +35,17 @@ def _det_cell(det_score: dict) -> str:
     return f"{det_score['passed']}/{det_score['total']}"
 
 
+def _consistency_cell(consistency_score: float) -> Text:
+    pct = round(consistency_score * 100)
+    label = f"{pct}%"
+    if consistency_score >= 1.0:
+        return Text(label, style="bold green")
+    elif consistency_score <= 0.0:
+        return Text(label, style="bold red")
+    else:
+        return Text(label, style="bold yellow")
+
+
 def _pro_cell(pro_score, task_id: str, verdicts: dict | None) -> Text:
     if pro_score is None:
         return Text("—", style="dim")
@@ -59,11 +70,15 @@ def print_results(scored: list, server_name: str, verbose: bool = False, verdict
     console.rule(f"[bold]{server_name}[/bold]")
     console.print(f"\n[bold]Results: {passed}/{total} passed[/bold]\n")
 
+    show_consistency = any("consistency_score" in r for r in scored)
+
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
     table.add_column("Task", style="cyan", no_wrap=True)
     table.add_column("Status")
     table.add_column("Det", justify="right")
     table.add_column("Pro")
+    if show_consistency:
+        table.add_column("Consistency", justify="right")
     table.add_column("Calls", justify="right")
     table.add_column("Answer")
 
@@ -92,14 +107,17 @@ def print_results(scored: list, server_name: str, verbose: bool = False, verdict
             answer_cell = truncated
 
         det = r.get("det_score", {"passed": 0, "total": 0})
-        table.add_row(
+        row = [
             r["id"],
             _status_cell(r["status"]),
             _det_cell(det),
             _pro_cell(r.get("pro_score"), r["id"], verdicts),
-            str(r["call_count"]),
-            answer_cell,
-        )
+        ]
+        if show_consistency:
+            cs = r.get("consistency_score")
+            row.append(_consistency_cell(cs) if cs is not None else Text("—", style="dim"))
+        row.extend([str(r["call_count"]), answer_cell])
+        table.add_row(*row)
 
     console.print(table)
 

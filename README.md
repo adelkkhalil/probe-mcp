@@ -8,7 +8,7 @@ An eval harness for MCP servers. Runs a set of natural language tasks against an
 
 When you wrap an existing API as an MCP server, the agent's behavior depends heavily on the quality of the tool definitions, not just the underlying API. Vague descriptions, opaque field names, encoded values, and missing workflow hints all cause agents to fail silently, guess wrong, or crash with context window errors.
 
-There is currently no automated way to measure this. You either run tasks manually in Claude Desktop and observe what happens, or you ship and find out in production.
+There is currently no automated way to measure this. you ship and find out in production.
 
 probe-mcp gives you a test suite for your MCP server.
 

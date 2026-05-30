@@ -84,13 +84,16 @@ def _resolve_server(name: str, servers: dict, servers_yaml_path: Path) -> dict:
     }
 
 
-def load_tasks(path: str, server_override: str | None = None) -> dict:
+def load_tasks(path: str, server_name: str) -> dict:
     """Load and validate a task file. Returns the parsed task suite.
 
     suite["server"] is resolved to {"name", "command", "args", "cwd"} via
     servers.yaml located in the task file's directory or PROBE_CWD.
-    server_override replaces the server name from the task file before resolution.
+    server_name is a required argument — it is NOT read from the task YAML.
     """
+    if not server_name or not server_name.strip():
+        raise ValueError("server_name must be a non-empty string")
+
     file = Path(path)
 
     if not file.exists():
@@ -108,10 +111,11 @@ def load_tasks(path: str, server_override: str | None = None) -> dict:
     if not isinstance(data, dict):
         raise ValueError(f"Task file must contain a YAML mapping at the top level ({path})")
 
-    if "server" not in data:
-        raise ValueError("Task file must contain a 'server' key")
-    if not isinstance(data["server"], str) or not data["server"].strip():
-        raise ValueError("'server' must be a non-empty string (a server name from servers.yaml)")
+    if "server" in data:
+        raise ValueError(
+            "Task files no longer support a 'server' field. "
+            "Remove it and pass the server name via --server."
+        )
 
     if "tasks" not in data:
         raise ValueError("Task file must contain a 'tasks' key")
@@ -230,7 +234,6 @@ def load_tasks(path: str, server_override: str | None = None) -> dict:
             )
 
     # Resolve server name via servers.yaml
-    server_name = server_override if server_override is not None else data["server"]
     servers_yaml_path = _find_servers_yaml(file)
     servers = _load_servers(servers_yaml_path)
     data["server"] = _resolve_server(server_name, servers, servers_yaml_path)

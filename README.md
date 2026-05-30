@@ -33,7 +33,7 @@ probe-mcp gives you a test suite for your MCP server.
 Running the same four tasks against two servers — one with a semantic layer, one without:
 
 ```bash
-probe-mcp eval examples/northwind/tasks/northwind.yaml --compare raw
+probe-mcp eval examples/northwind/tasks/northwind.yaml --server semantic --compare raw
 ```
 
 ![Compare output](assets/compare-output.png)
@@ -231,28 +231,22 @@ probe-mcp full --help
 ## Running the eval
 
 ```bash
-probe-mcp eval examples/northwind/tasks/northwind.yaml
+probe-mcp eval examples/northwind/tasks/northwind.yaml --server semantic
 ```
 
-Runs all tasks against the server named in the task file, prints a Rich table of results, saves a JSON results file to `results/`.
+Runs all tasks against the named server, prints a Rich table of results, saves a JSON results file to `results/`.
 
 ```bash
-probe-mcp eval examples/northwind/tasks/northwind.yaml --verbose
+probe-mcp eval examples/northwind/tasks/northwind.yaml --server semantic --verbose
 ```
 
 Shows full answers and detail lines in addition to the summary table.
 
 ```bash
-probe-mcp eval examples/northwind/tasks/northwind.yaml --compare raw
+probe-mcp eval examples/northwind/tasks/northwind.yaml --server semantic --compare raw
 ```
 
-Runs the same tasks against two servers (`semantic` from the task file and `raw` from `--compare`) and prints a side-by-side comparison table followed by per-server detail.
-
-```bash
-probe-mcp eval examples/northwind/tasks/northwind.yaml --server raw
-```
-
-Override the server from the task file with a different named server.
+Runs the same tasks against two servers (`semantic` from `--server` and `raw` from `--compare`) and prints a side-by-side comparison table followed by per-server detail.
 
 ---
 
@@ -275,7 +269,7 @@ Override the judge model for a single run.
 ## Full pipeline
 
 ```bash
-probe-mcp full examples/northwind/tasks/northwind.yaml
+probe-mcp full examples/northwind/tasks/northwind.yaml --server semantic
 ```
 
 Runs eval, then judge, then prints the combined report in one command.
@@ -294,11 +288,9 @@ Prints structural results and judge verdicts together. Automatically finds the m
 
 ## Writing tasks
 
-Task files are YAML. The `server` field names a server from `servers.yaml`. Each task has a prompt and a set of expectations split into two named sections:
+Task files are YAML. Each task has a prompt and a set of expectations split into two named sections. The server is specified at runtime via `--server`, not in the task file:
 
 ```yaml
-server: semantic
-
 tasks:
   - id: find_orders
     prompt: "Find orders for customer ALFKI shipped via express courier"
@@ -339,8 +331,8 @@ The repo ships a reference example at `examples/northwind/`. It contains:
 Run it from the repo root:
 
 ```bash
-probe-mcp eval examples/northwind/tasks/northwind.yaml
-probe-mcp eval examples/northwind/tasks/northwind.yaml --compare raw
+probe-mcp eval examples/northwind/tasks/northwind.yaml --server semantic
+probe-mcp eval examples/northwind/tasks/northwind.yaml --server semantic --compare raw
 ```
 
 The two servers demonstrate how tool description quality changes agent behavior on the same underlying API calls.

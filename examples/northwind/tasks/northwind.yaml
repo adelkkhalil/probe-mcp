@@ -1,5 +1,3 @@
-server: semantic
-
 tasks:
   - id: customers_by_country
     prompt: "Find me all customers from Germany"

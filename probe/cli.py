@@ -70,9 +70,6 @@ servers:
 """
 
 _SAMPLE_TASKS = """\
-# MCP server to test — must match a key in servers.yaml
-server: my_server
-
 tasks:
   - id: example_task
     prompt: "Find me all customers from Germany"
@@ -93,9 +90,9 @@ def _run_async(coro):
         raise click.ClickException(str(e))
 
 
-def _load_tasks_or_exit(tasks_file: str, server_override: str | None = None) -> dict:
+def _load_tasks_or_exit(tasks_file: str, server_name: str) -> dict:
     try:
-        return load_tasks(tasks_file, server_override=server_override)
+        return load_tasks(tasks_file, server_name=server_name)
     except (FileNotFoundError, ValueError) as e:
         raise click.ClickException(str(e))
 
@@ -158,7 +155,7 @@ def help_command():
     content.append("\nTypical workflow:\n", style="bold")
     content.append("  1. probe-mcp init\n")
     content.append("  2. Edit servers.yaml and tasks/my_server.yaml\n")
-    content.append("  3. probe-mcp full tasks/my_server.yaml\n")
+    content.append("  3. probe-mcp full tasks/my_server.yaml --server my_server\n")
 
     content.append("\nRun any command with --help for options:\n", style="bold")
     content.append("  probe-mcp eval --help\n")
@@ -206,9 +203,9 @@ def init(force: bool):
         console.print("[bold]Next steps:[/bold]")
         console.print("  1. Edit [cyan]servers.yaml[/cyan] to define your MCP server")
         console.print("  2. Edit [cyan]tasks/my_server.yaml[/cyan] to write your tasks")
-        console.print("  3. Run: [cyan]probe-mcp full tasks/my_server.yaml[/cyan]")
+        console.print("  3. Run: [cyan]probe-mcp full tasks/my_server.yaml --server my_server[/cyan]")
     else:
-        console.print("[dim]All files already exist. Run: probe-mcp full tasks/my_server.yaml[/dim]")
+        console.print("[dim]All files already exist. Run: probe-mcp full tasks/my_server.yaml --server my_server[/dim]")
 
 
 @cli.command()
@@ -258,22 +255,14 @@ def status():
         task_table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
         task_table.add_column("File", style="cyan")
         task_table.add_column("Tasks", justify="right")
-        task_table.add_column("Server")
         for f in task_files:
             try:
-                suite = load_tasks(str(f))
-                server_display = suite["server"]["name"]
-                task_table.add_row(f.name, str(len(suite["tasks"])), server_display)
+                import yaml
+                raw = yaml.safe_load(f.read_text())
+                task_count = str(len(raw.get("tasks", []))) if isinstance(raw.get("tasks"), list) else "?"
+                task_table.add_row(f.name, task_count)
             except Exception:
-                # Try loading the raw YAML just to get task count and server name
-                try:
-                    import yaml
-                    raw = yaml.safe_load(f.read_text())
-                    task_count = str(len(raw.get("tasks", []))) if isinstance(raw.get("tasks"), list) else "?"
-                    server_name = raw.get("server", "?") if isinstance(raw.get("server"), str) else "?"
-                    task_table.add_row(f.name, task_count, f"[yellow]{server_name}[/yellow]")
-                except Exception:
-                    task_table.add_row(f.name, "?", "[red]error reading file[/red]")
+                task_table.add_row(f.name, "?")
         console.print(task_table)
     else:
         console.print("[dim]No task files found[/dim]")
@@ -330,7 +319,7 @@ def status():
 
 @cli.command()
 @click.argument("tasks_file")
-@click.option("--server", default=None, help="Override the server (server name from servers.yaml)")
+@click.option("--server", required=True, help="Server name from servers.yaml to run tasks against")
 @click.option("--compare", default=None, help="Second server name (from servers.yaml) to run tasks against for comparison")
 @click.option("--verbose", is_flag=True, default=False, help="Show MCP server output and full answers")
 @click.option(
@@ -339,13 +328,13 @@ def status():
 )
 def eval(tasks_file: str, server: str, compare: str, verbose: bool, log_dir: str | None):
     """Run an eval suite against an MCP server."""
-    suite = _load_tasks_or_exit(tasks_file, server_override=server)
+    suite = _load_tasks_or_exit(tasks_file, server_name=server)
 
     # Pre-generate run_id so log filename can match results filename
     pre_run_id = secrets.token_hex(2) if log_dir is not None else None
 
     if compare:
-        suite2 = _load_tasks_or_exit(tasks_file, server_override=compare)
+        suite2 = _load_tasks_or_exit(tasks_file, server_name=compare)
 
         pre_run_id2 = secrets.token_hex(2) if log_dir is not None else None
 
@@ -504,7 +493,7 @@ def report(results_file: str, verbose: bool, log_dir: str | None):
 
 @cli.command()
 @click.argument("tasks_file")
-@click.option("--server", default=None, help="Override the server (server name from servers.yaml)")
+@click.option("--server", required=True, help="Server name from servers.yaml to run tasks against")
 @click.option("--compare", default=None, help="Second server name (from servers.yaml) to run tasks against for comparison")
 @click.option("--judge-model", default=None, help="Override judge model from config")
 @click.option("--verbose", is_flag=True, default=False, help="Show MCP server output and full answers")
@@ -515,13 +504,13 @@ def report(results_file: str, verbose: bool, log_dir: str | None):
 def full(tasks_file: str, server: str, compare: str, judge_model: str, verbose: bool, log_dir: str | None):
     """Run eval, then judge, then report in sequence."""
     config = load_config()
-    suite = _load_tasks_or_exit(tasks_file, server_override=server)
+    suite = _load_tasks_or_exit(tasks_file, server_name=server)
 
     pre_run_id = secrets.token_hex(2) if log_dir is not None else None
 
     results2_file = None
     if compare:
-        suite2 = _load_tasks_or_exit(tasks_file, server_override=compare)
+        suite2 = _load_tasks_or_exit(tasks_file, server_name=compare)
 
         pre_run_id2 = secrets.token_hex(2) if log_dir is not None else None
 

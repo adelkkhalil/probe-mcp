@@ -15,10 +15,10 @@ The runner SHALL spawn the MCP server using `StdioServerParameters` with `comman
 - **WHEN** `suite["server"]` is `{"command": "uv", "args": ["run", "python", "mcp_server.py"], "cwd": "/project"}`
 - **THEN** the subprocess is started with `command="uv"`, `args=["run", "python", "mcp_server.py"]`, and `cwd="/project"`
 
-#### Scenario: Server spawns and initializes successfully
+#### Scenario: Server spawns and session is ready for tool listing
 
-- **WHEN** the resolved command and args refer to a working MCP server
-- **THEN** the runner spawns a subprocess and completes the MCP handshake via `session.initialize()`
+- **WHEN** the resolved command and args refer to a working MCP server (any spec version)
+- **THEN** the runner spawns a subprocess, establishes a `ClientSession`, and the session is ready to call `list_tools()` — protocol negotiation (including any initialize handshake required by older servers) is handled by the MCP SDK transparently without an explicit `session.initialize()` call in the runner
 
 ---
 

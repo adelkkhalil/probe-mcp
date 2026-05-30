@@ -135,7 +135,9 @@ async def run_suite(
 
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
-            await session.initialize()
+            # MCP ≤2025-11-25 requires explicit handshake; 2026-07-28+ SDK removes it
+            if hasattr(session, "initialize"):
+                await session.initialize()
             tools = await get_tools(session)
 
             for task in suite["tasks"]:

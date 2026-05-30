@@ -1,0 +1,7 @@
+servers:
+  semantic:
+    command: uv
+    args: ["run", "--directory", ".", "python", "mcp_server_semantic.py"]
+  raw:
+    command: uv
+    args: ["run", "--directory", ".", "python", "mcp_server_raw.py"]

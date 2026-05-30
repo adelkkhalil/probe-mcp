@@ -1,11 +1,96 @@
+import os
 import warnings
 from pathlib import Path
 
 import yaml
 
 
-def load_tasks(path: str) -> dict:
-    """Load and validate a task file. Returns the parsed task suite."""
+def _find_servers_yaml(task_file_path: Path) -> Path:
+    """Lookup: task file directory, then its parent, then PROBE_CWD / cwd."""
+    searched = []
+
+    # 1. Task file's own directory
+    candidate = task_file_path.parent / "servers.yaml"
+    if candidate.exists():
+        return candidate
+    searched.append(candidate)
+
+    # 2. Parent of task file's directory (project root when tasks live in tasks/)
+    parent_candidate = task_file_path.parent.parent / "servers.yaml"
+    if parent_candidate != candidate and parent_candidate.exists():
+        return parent_candidate
+    if parent_candidate != candidate:
+        searched.append(parent_candidate)
+
+    # 3. PROBE_CWD / process cwd
+    probe_cwd = os.environ.get("PROBE_CWD")
+    fallback_dir = Path(probe_cwd) if probe_cwd else Path.cwd()
+    cwd_candidate = fallback_dir / "servers.yaml"
+    if cwd_candidate not in searched and cwd_candidate.exists():
+        return cwd_candidate
+    if cwd_candidate not in searched:
+        searched.append(cwd_candidate)
+
+    paths = "\n".join(f"  {p}" for p in searched)
+    raise FileNotFoundError(
+        f"servers.yaml not found. Searched:\n{paths}\n"
+        f"Run 'probe-mcp init' to create one, or add servers.yaml to your task file directory."
+    )
+
+
+def _load_servers(servers_yaml_path: Path) -> dict:
+    """Parse and validate servers.yaml, returning the parsed servers mapping."""
+    try:
+        with open(servers_yaml_path) as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        raise ValueError(f"servers.yaml is not valid YAML ({servers_yaml_path}): {e}")
+
+    if not isinstance(data, dict) or "servers" not in data:
+        raise ValueError(f"servers.yaml must contain a top-level 'servers' mapping ({servers_yaml_path})")
+
+    servers = data["servers"]
+    if not isinstance(servers, dict) or not servers:
+        raise ValueError(f"servers.yaml 'servers' must be a non-empty mapping ({servers_yaml_path})")
+
+    for name, entry in servers.items():
+        if not isinstance(entry, dict):
+            raise ValueError(f"servers.yaml: server '{name}' must be a mapping")
+        command = entry.get("command")
+        if not isinstance(command, str) or not command.strip():
+            raise ValueError(f"servers.yaml: server '{name}' missing non-empty 'command' string")
+        args = entry.get("args")
+        if args is None:
+            raise ValueError(f"servers.yaml: server '{name}' missing 'args' list")
+        if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
+            raise ValueError(f"servers.yaml: server '{name}' 'args' must be a list of strings")
+
+    return servers
+
+
+def _resolve_server(name: str, servers: dict, servers_yaml_path: Path) -> dict:
+    """Resolve a server name to its command/args/cwd dict."""
+    if name not in servers:
+        raise ValueError(
+            f"Server '{name}' not found in {servers_yaml_path}. "
+            f"Available servers: {', '.join(servers)}"
+        )
+    entry = servers[name]
+    return {
+        "name": name,
+        "command": entry["command"],
+        "args": entry["args"],
+        "cwd": str(servers_yaml_path.parent.resolve()),
+    }
+
+
+def load_tasks(path: str, server_override: str | None = None) -> dict:
+    """Load and validate a task file. Returns the parsed task suite.
+
+    suite["server"] is resolved to {"name", "command", "args", "cwd"} via
+    servers.yaml located in the task file's directory or PROBE_CWD.
+    server_override replaces the server name from the task file before resolution.
+    """
     file = Path(path)
 
     if not file.exists():
@@ -26,7 +111,7 @@ def load_tasks(path: str) -> dict:
     if "server" not in data:
         raise ValueError("Task file must contain a 'server' key")
     if not isinstance(data["server"], str) or not data["server"].strip():
-        raise ValueError("'server' must be a non-empty string")
+        raise ValueError("'server' must be a non-empty string (a server name from servers.yaml)")
 
     if "tasks" not in data:
         raise ValueError("Task file must contain a 'tasks' key")
@@ -143,5 +228,11 @@ def load_tasks(path: str) -> dict:
                 UserWarning,
                 stacklevel=2,
             )
+
+    # Resolve server name via servers.yaml
+    server_name = server_override if server_override is not None else data["server"]
+    servers_yaml_path = _find_servers_yaml(file)
+    servers = _load_servers(servers_yaml_path)
+    data["server"] = _resolve_server(server_name, servers, servers_yaml_path)
 
     return data

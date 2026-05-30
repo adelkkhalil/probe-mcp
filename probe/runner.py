@@ -2,7 +2,6 @@ import asyncio
 import json
 import os
 import secrets
-import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -117,20 +116,19 @@ async def run_suite(
     run_id: str | None = None,
 ) -> tuple[list, str]:
     """Run all tasks in a suite against the MCP server."""
-    server_path = suite["server"]
-
-    if not Path(server_path).is_file():
-        raise FileNotFoundError(f"MCP server file not found: {server_path}")
+    server_config = suite["server"]
 
     env = dict(os.environ)
+    env.pop("VIRTUAL_ENV", None)  # prevent uv warning when server uses its own venv
     if not verbose:
         env["FASTMCP_SHOW_SERVER_BANNER"] = "false"
         env["FASTMCP_LOG_LEVEL"] = "WARNING"
 
     server_params = StdioServerParameters(
-        command=sys.executable,
-        args=[server_path],
+        command=server_config["command"],
+        args=server_config["args"],
         env=env,
+        cwd=server_config["cwd"],
     )
 
     results = []
@@ -173,14 +171,14 @@ async def run_suite(
     Path(results_dir).mkdir(parents=True, exist_ok=True)
 
     now = datetime.now()
-    server_stem = Path(server_path).stem
+    server_stem = server_config["name"]
     timestamp = now.strftime("%Y-%m-%d_%H-%M")
     run_id = run_id or secrets.token_hex(2)
     filename = f"{server_stem}_{timestamp}_{agent_model}_{run_id}.json"
     filepath = Path(results_dir) / filename
 
     meta = {
-        "server": server_path,
+        "server": server_config["name"],
         "tasks_file": tasks_file,
         "agent_model": agent_model,
         "timestamp": now.strftime("%Y-%m-%dT%H:%M:%S"),

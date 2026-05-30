@@ -9,3 +9,17 @@ wheels/
 # Virtual environments
 .venv
 .idea/
+
+# User project files — create your own with probe-mcp init
+probe.yaml
+servers.yaml
+
+# Generated outputs
+results/
+judge/
+*.log
+
+# External testbeds — only northwind ships with this repo
+examples/*/
+!examples/northwind/
+!examples/northwind/**

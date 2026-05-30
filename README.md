@@ -33,7 +33,7 @@ probe-mcp gives you a test suite for your MCP server.
 Running the same four tasks against two servers — one with a semantic layer, one without:
 
 ```bash
-probe-mcp eval tasks/northwind.yaml --compare mcp_server_raw.py --ignore-tool-names
+probe-mcp eval examples/northwind/tasks/northwind.yaml --compare raw
 ```
 
 ![Compare output](assets/compare-output.png)
@@ -62,14 +62,15 @@ The comparison table shows the verdict at a glance. The detail tables below expl
                           ┌──────────▼──────────┐   ┌────────▼────────┐
                           │       runner        │   │      judge      │
                           │                     │   │                 │
-                          │ spawns MCP server   │   │ reads results   │
-                          │ as subprocess over  │   │ calls LLM       │
-                          │ stdio (real MCP     │   │ saves verdicts  │
-                          │ protocol)           │   └────────┬────────┘
-                          │                     │            │
-                          │ runs tasks through  │   ┌────────▼────────┐
-                          │ LLM autonomously    │   │  judge/*.json   │
-                          └──────────┬──────────┘   └─────────────────┘
+                          │ resolves server     │   │ reads results   │
+                          │ name via            │   │ calls LLM       │
+                          │ servers.yaml,       │   │ saves verdicts  │
+                          │ spawns subprocess   │   └────────┬────────┘
+                          │ over stdio          │            │
+                          │                     │   ┌────────▼────────┐
+                          │ runs tasks through  │   │  judge/*.json   │
+                          │ LLM autonomously    │   └─────────────────┘
+                          └──────────┬──────────┘
                                      │
                           ┌──────────▼──────────┐
                           │       scorer        │
@@ -92,19 +93,9 @@ The comparison table shows the verdict at a glance. The detail tables below expl
                     MCP server subprocess (spawned by runner)
                     ┌──────────────────────────────────────────┐
                     │                                          │
-                    │   mcp_server_raw.py                      │
-                    │   naive 1:1 wrap, minimal descriptions   │
-                    │                  or                      │
-                    │   mcp_server_semantic.py                 │
-                    │   rich descriptions, limits, composite   │
+                    │   any command and args from servers.yaml │
+                    │   e.g. uv run python mcp_server.py       │
                     │                                          │
-                    └──────────────────┬───────────────────────┘
-                                       │ same underlying calls
-                                       ▼
-                    ┌──────────────────────────────────────────┐
-                    │           northwind_api.py               │
-                    │   untouchable legacy API, plain Python,  │
-                    │   no MCP decorators, no changes          │
                     └──────────────────────────────────────────┘
 ```
 
@@ -167,12 +158,34 @@ PROBE_CWD="$PWD" uv run --directory /path/to/probe-mcp python -m probe.cli [comm
 probe-mcp init
 ```
 
-Creates two files if they do not already exist:
+Creates three files if they do not already exist:
 
 - `probe.yaml` — config file for model selection and output directories
+- `servers.yaml` — defines named servers with the command and args to spawn them
 - `tasks/my_server.yaml` — sample task file with comments explaining the format
 
 If a file already exists it is skipped with a message. Use `--force` to overwrite.
+
+---
+
+## Server configuration
+
+`servers.yaml` defines named servers. Task files reference servers by name. This lets you use any runtime, venv, or wrapper script — not just Python files in probe-mcp's own venv.
+
+```yaml
+servers:
+  semantic:
+    command: uv
+    args: ["run", "--directory", ".", "python", "mcp_server_semantic.py"]
+
+  raw:
+    command: uv
+    args: ["run", "--directory", ".", "python", "mcp_server_raw.py"]
+```
+
+The subprocess is spawned with `command` and `args` exactly as specified, with the working directory set to the directory containing `servers.yaml`. This means relative paths in `args` resolve from that directory.
+
+`servers.yaml` is looked up in the task file's directory first, then in `PROBE_CWD`.
 
 ---
 
@@ -198,8 +211,8 @@ This file is optional. Defaults are used if it does not exist. The model name is
 
 ```bash
 probe-mcp help     Show workflow guide and all commands
-probe-mcp init     Create probe.yaml and a sample tasks file
-probe-mcp status   Show project overview: config, tasks, results, judge files
+probe-mcp init     Create probe.yaml, servers.yaml, and a sample tasks file
+probe-mcp status   Show project overview: config, servers, tasks, results, judge files
 probe-mcp eval     Run tasks against an MCP server, save results
 probe-mcp judge    Evaluate saved results using an LLM judge
 probe-mcp report   Print report from saved results
@@ -218,29 +231,35 @@ probe-mcp full --help
 ## Running the eval
 
 ```bash
-probe-mcp eval tasks/northwind.yaml
+probe-mcp eval examples/northwind/tasks/northwind.yaml
 ```
 
-Runs all tasks, prints a Rich table of results, saves a JSON results file to `results/`.
+Runs all tasks against the server named in the task file, prints a Rich table of results, saves a JSON results file to `results/`.
 
 ```bash
-probe-mcp eval tasks/northwind.yaml --verbose
+probe-mcp eval examples/northwind/tasks/northwind.yaml --verbose
 ```
 
 Shows full answers and detail lines in addition to the summary table.
 
 ```bash
-probe-mcp eval tasks/northwind.yaml --compare mcp_server_raw.py --ignore-tool-names
+probe-mcp eval examples/northwind/tasks/northwind.yaml --compare raw
 ```
 
-Runs the same tasks against two servers and prints a side-by-side comparison table followed by per-server detail.
+Runs the same tasks against two servers (`semantic` from the task file and `raw` from `--compare`) and prints a side-by-side comparison table followed by per-server detail.
+
+```bash
+probe-mcp eval examples/northwind/tasks/northwind.yaml --server raw
+```
+
+Override the server from the task file with a different named server.
 
 ---
 
 ## Running the judge
 
 ```bash
-probe-mcp judge results/mcp_server_semantic_2026-05-20_15-38_claude-haiku-4-5_62f7.json
+probe-mcp judge results/semantic_2026-05-20_15-38_claude-haiku-4-5_62f7.json
 ```
 
 Reads a results file, calls a second LLM to evaluate each answer, saves a judge file to `judge/`. The judge evaluates answer quality beyond structural checks, catching cases where the agent gave a technically passing but misleading answer.
@@ -256,7 +275,7 @@ Override the judge model for a single run.
 ## Full pipeline
 
 ```bash
-probe-mcp full tasks/northwind.yaml
+probe-mcp full examples/northwind/tasks/northwind.yaml
 ```
 
 Runs eval, then judge, then prints the combined report in one command.
@@ -266,7 +285,7 @@ Runs eval, then judge, then prints the combined report in one command.
 ## Viewing results
 
 ```bash
-probe-mcp report results/mcp_server_semantic_2026-05-20_15-38_claude-haiku-4-5_62f7.json
+probe-mcp report results/semantic_2026-05-20_15-38_claude-haiku-4-5_62f7.json
 ```
 
 Prints structural results and judge verdicts together. Automatically finds the matching judge file if present.
@@ -275,10 +294,10 @@ Prints structural results and judge verdicts together. Automatically finds the m
 
 ## Writing tasks
 
-Task files are YAML. Each task has a prompt and a set of expectations split into two named sections:
+Task files are YAML. The `server` field names a server from `servers.yaml`. Each task has a prompt and a set of expectations split into two named sections:
 
 ```yaml
-server: mcp_server_semantic.py
+server: semantic
 
 tasks:
   - id: find_orders
@@ -306,43 +325,43 @@ Both sections are optional. A task with only `deterministic` checks skips the ju
 
 ---
 
+## Northwind example
+
+The repo ships a reference example at `examples/northwind/`. It contains:
+
+- `mcp_server_raw.py` — naive 1:1 wrapper with minimal descriptions
+- `mcp_server_semantic.py` — rich descriptions, parameter notes, a `limit` cap, and a composite tool
+- `northwind_api.py` + `northwind.db` — the underlying legacy API (SQLite, no MCP)
+- `servers.yaml` — defines `semantic` and `raw` server entries
+- `probe.yaml` — example config
+- `tasks/northwind.yaml` — four tasks covering the northwind API
+
+Run it from the repo root:
+
+```bash
+probe-mcp eval examples/northwind/tasks/northwind.yaml
+probe-mcp eval examples/northwind/tasks/northwind.yaml --compare raw
+```
+
+The two servers demonstrate how tool description quality changes agent behavior on the same underlying API calls.
+
+---
+
 ## File naming
 
-Results and judge files include the server, timestamp, model, and a short random ID:
+Results and judge files include the server name, timestamp, model, and a short random ID:
 
 ```
-results/mcp_server_semantic_2026-05-20_15-38_claude-haiku-4-5_62f7.json
-judge/mcp_server_semantic_2026-05-20_15-38_claude-haiku-4-5_62f7_judge_claude-haiku-4-5_c600.json
+results/semantic_2026-05-20_15-38_claude-haiku-4-5_62f7.json
+judge/semantic_2026-05-20_15-38_claude-haiku-4-5_62f7_judge_claude-haiku-4-5_c600.json
 ```
 
 Every filename reflects exactly what was used. No placeholder model names.
 
 ---
 
-## Connect to Claude Desktop
-
-To explore the servers interactively, add them to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "northwind-raw": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/probe-mcp", "python", "mcp_server_raw.py"]
-    },
-    "northwind-semantic": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/probe-mcp", "python", "mcp_server_semantic.py"]
-    }
-  }
-}
-```
-
----
-
 ## Roadmap
 
-- Async parallel execution for compare runs
 - Multi-model support: run the same tasks against different LLMs and compare results
 - Retry with backoff for rate limit errors during judge runs
 - More task examples beyond the Northwind baseline

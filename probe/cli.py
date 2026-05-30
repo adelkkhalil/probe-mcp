@@ -23,7 +23,7 @@ from probe.config import (
     load_config,
 )
 from probe.judge import judge_results_file
-from probe.loader import load_tasks
+from probe.loader import _find_servers_yaml, _load_servers, load_tasks
 from probe.reporter import console, print_compare_table, print_results, print_verdicts
 from probe.runner import run_suite
 from probe.scorer import score_task
@@ -39,7 +39,7 @@ def _working_dir() -> Path:
     probe_cwd = os.environ.get("PROBE_CWD")
     if probe_cwd:
         return Path(probe_cwd)
-    return _working_dir()
+    return Path.cwd()
 
 
 _PROBE_YAML = """\
@@ -52,6 +52,39 @@ output:
   judge_dir: judge
 """
 
+_SERVERS_YAML = """\
+# Define named servers that your task files can reference.
+# Each entry sets the command and args used to spawn the MCP server subprocess.
+# Paths in args are resolved relative to this file's directory.
+#
+# Example (uv project in the same directory):
+#
+# servers:
+#   my_server:
+#     command: uv
+#     args: ["run", "--directory", ".", "python", "my_mcp_server.py"]
+servers:
+  my_server:
+    command: uv
+    args: ["run", "--directory", ".", "python", "my_mcp_server.py"]
+"""
+
+_SAMPLE_TASKS = """\
+# MCP server to test — must match a key in servers.yaml
+server: my_server
+
+tasks:
+  - id: example_task
+    prompt: "Find me all customers from Germany"
+    expect:
+      deterministic:
+        tools_called_includes: [get_customers]
+        max_calls: 2
+        answer_includes: "Germany"
+      probabilistic:
+        judge: true
+"""
+
 
 def _run_async(coro):
     try:
@@ -60,9 +93,9 @@ def _run_async(coro):
         raise click.ClickException(str(e))
 
 
-def _load_tasks_or_exit(tasks_file: str) -> dict:
+def _load_tasks_or_exit(tasks_file: str, server_override: str | None = None) -> dict:
     try:
-        return load_tasks(tasks_file)
+        return load_tasks(tasks_file, server_override=server_override)
     except (FileNotFoundError, ValueError) as e:
         raise click.ClickException(str(e))
 
@@ -99,23 +132,6 @@ def _make_log_console(
     return lc, fp
 
 
-_SAMPLE_TASKS = """\
-# MCP server to test
-server: my_mcp_server.py
-
-tasks:
-  - id: example_task
-    prompt: "Find me all customers from Germany"
-    expect:
-      deterministic:
-        tools_called_includes: [get_customers]
-        max_calls: 2
-        answer_includes: "Germany"
-      probabilistic:
-        judge: true
-"""
-
-
 @click.group()
 def cli():
     """probe-mcp: eval harness for MCP servers."""
@@ -129,7 +145,7 @@ def help_command():
 
     content.append("Commands:\n", style="bold")
     commands = [
-        ("init", "Create probe.yaml and a sample tasks file"),
+        ("init", "Create probe.yaml, servers.yaml, and a sample tasks file"),
         ("eval", "Run tasks against an MCP server, save results to results/"),
         ("judge", "Evaluate saved results with an LLM judge, save to judge/"),
         ("report", "Print report from saved results"),
@@ -141,7 +157,7 @@ def help_command():
 
     content.append("\nTypical workflow:\n", style="bold")
     content.append("  1. probe-mcp init\n")
-    content.append("  2. Edit tasks/my_server.yaml\n")
+    content.append("  2. Edit servers.yaml and tasks/my_server.yaml\n")
     content.append("  3. probe-mcp full tasks/my_server.yaml\n")
 
     content.append("\nRun any command with --help for options:\n", style="bold")
@@ -162,11 +178,12 @@ def help_command():
 @cli.command()
 @click.option("--force", is_flag=True, default=False, help="Overwrite existing files")
 def init(force: bool):
-    """Create probe.yaml and a sample tasks file to get started."""
+    """Create probe.yaml, servers.yaml, and a sample tasks file to get started."""
     (_working_dir() / "tasks").mkdir(exist_ok=True)
 
     files = [
         ("probe.yaml", _PROBE_YAML),
+        ("servers.yaml", _SERVERS_YAML),
         ("tasks/my_server.yaml", _SAMPLE_TASKS),
     ]
 
@@ -187,15 +204,16 @@ def init(force: bool):
     console.print()
     if created > 0:
         console.print("[bold]Next steps:[/bold]")
-        console.print("  1. Edit [cyan]tasks/my_server.yaml[/cyan] to match your MCP server")
-        console.print("  2. Run: [cyan]probe-mcp full tasks/my_server.yaml[/cyan]")
+        console.print("  1. Edit [cyan]servers.yaml[/cyan] to define your MCP server")
+        console.print("  2. Edit [cyan]tasks/my_server.yaml[/cyan] to write your tasks")
+        console.print("  3. Run: [cyan]probe-mcp full tasks/my_server.yaml[/cyan]")
     else:
         console.print("[dim]All files already exist. Run: probe-mcp full tasks/my_server.yaml[/dim]")
 
 
 @cli.command()
 def status():
-    """Show project overview: config, task files, results, and judge files."""
+    """Show project overview: config, servers, task files, results, and judge files."""
     config = load_config()
 
     # Section 1 — Config
@@ -211,7 +229,28 @@ def status():
     console.print(cfg_table)
     console.print()
 
-    # Section 2 — Task files
+    # Section 2 — Servers
+    console.rule("[bold]Servers[/bold]")
+    try:
+        # Use a dummy task path so lookup starts from working dir
+        _dummy = _working_dir() / "tasks" / "_dummy.yaml"
+        servers_yaml_path = _find_servers_yaml(_dummy)
+        servers = _load_servers(servers_yaml_path)
+        srv_table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+        srv_table.add_column("Name", style="cyan")
+        srv_table.add_column("Command")
+        srv_table.add_column("Args")
+        for name, entry in servers.items():
+            srv_table.add_row(name, entry["command"], " ".join(entry["args"]))
+        console.print(srv_table)
+        console.print(f"[dim]  {servers_yaml_path}[/dim]")
+    except FileNotFoundError:
+        console.print("[dim]No servers.yaml found. Run: probe-mcp init[/dim]")
+    except (ValueError, Exception) as e:
+        console.print(f"[red]Error reading servers.yaml: {e}[/red]")
+    console.print()
+
+    # Section 3 — Task files
     console.rule("[bold]Task Files[/bold]")
     tasks_path = _working_dir() / "tasks"
     task_files = sorted(tasks_path.glob("*.yaml")) if tasks_path.exists() else []
@@ -223,15 +262,24 @@ def status():
         for f in task_files:
             try:
                 suite = load_tasks(str(f))
-                task_table.add_row(f.name, str(len(suite["tasks"])), suite["server"])
+                server_display = suite["server"]["name"]
+                task_table.add_row(f.name, str(len(suite["tasks"])), server_display)
             except Exception:
-                task_table.add_row(f.name, "?", "[red]error reading file[/red]")
+                # Try loading the raw YAML just to get task count and server name
+                try:
+                    import yaml
+                    raw = yaml.safe_load(f.read_text())
+                    task_count = str(len(raw.get("tasks", []))) if isinstance(raw.get("tasks"), list) else "?"
+                    server_name = raw.get("server", "?") if isinstance(raw.get("server"), str) else "?"
+                    task_table.add_row(f.name, task_count, f"[yellow]{server_name}[/yellow]")
+                except Exception:
+                    task_table.add_row(f.name, "?", "[red]error reading file[/red]")
         console.print(task_table)
     else:
         console.print("[dim]No task files found[/dim]")
     console.print()
 
-    # Section 3 — Results
+    # Section 4 — Results
     console.rule("[bold]Results[/bold]")
     results_path = _working_dir() / get_results_dir(config)
     result_files = (
@@ -256,7 +304,7 @@ def status():
         console.print("[dim]No results yet. Run: probe-mcp eval[/dim]")
     console.print()
 
-    # Section 4 — Judge files
+    # Section 5 — Judge files
     console.rule("[bold]Judge Files[/bold]")
     judge_path = _working_dir() / get_judge_dir(config)
     judge_files = (
@@ -282,34 +330,22 @@ def status():
 
 @cli.command()
 @click.argument("tasks_file")
-@click.option("--server", default=None, help="Override the server from the task file")
-@click.option("--ignore-tool-names", is_flag=True, default=False, help="Skip tool name checks")
-@click.option("--compare", default=None, help="Second server to run tasks against for comparison")
+@click.option("--server", default=None, help="Override the server (server name from servers.yaml)")
+@click.option("--compare", default=None, help="Second server name (from servers.yaml) to run tasks against for comparison")
 @click.option("--verbose", is_flag=True, default=False, help="Show MCP server output and full answers")
 @click.option(
     "--log", "log_dir", default=None, is_flag=False, flag_value="",
     metavar="[DIR]", help="Write plain-text log to DIR (default: alongside results)",
 )
-def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, verbose: bool, log_dir: str | None):
+def eval(tasks_file: str, server: str, compare: str, verbose: bool, log_dir: str | None):
     """Run an eval suite against an MCP server."""
-    suite = _load_tasks_or_exit(tasks_file)
-
-    if server:
-        suite["server"] = server
-
-    if ignore_tool_names:
-        for task in suite["tasks"]:
-            task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
+    suite = _load_tasks_or_exit(tasks_file, server_override=server)
 
     # Pre-generate run_id so log filename can match results filename
     pre_run_id = secrets.token_hex(2) if log_dir is not None else None
 
     if compare:
-        suite2 = copy.deepcopy(suite)
-        suite2["server"] = compare
-        if ignore_tool_names:
-            for task in suite2["tasks"]:
-                task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
+        suite2 = _load_tasks_or_exit(tasks_file, server_override=compare)
 
         pre_run_id2 = secrets.token_hex(2) if log_dir is not None else None
 
@@ -318,8 +354,8 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
             _ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
             _model = get_agent_model(_cfg)
             _rdir = get_results_dir(_cfg)
-            _exp1 = str(Path(_rdir) / f"{Path(suite['server']).stem}_{_ts}_{_model}_{pre_run_id}.json")
-            _exp2 = str(Path(_rdir) / f"{Path(suite2['server']).stem}_{_ts}_{_model}_{pre_run_id2}.json")
+            _exp1 = str(Path(_rdir) / f"{suite['server']['name']}_{_ts}_{_model}_{pre_run_id}.json")
+            _exp2 = str(Path(_rdir) / f"{suite2['server']['name']}_{_ts}_{_model}_{pre_run_id2}.json")
             lc, fp = _make_log_console(log_dir, _exp1)
             lc2, fp2 = _make_log_console(log_dir, _exp2)
         else:
@@ -336,22 +372,25 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
         scored = [score_task(r) for r in results]
         scored2 = [score_task(r) for r in results2]
 
+        server1_name = suite["server"]["name"]
+        server2_name = suite2["server"]["name"]
+
         try:
-            print_compare_table(scored, scored2, suite["server"], compare, log_console=lc)
+            print_compare_table(scored, scored2, server1_name, server2_name, log_console=lc)
 
             passed = sum(1 for r in scored if r["status"] == "PASS")
             passed2 = sum(1 for r in scored2 if r["status"] == "PASS")
             total = len(scored)
-            console.print(f"[bold]{suite['server']}[/bold]: {passed}/{total}    [bold]{compare}[/bold]: {passed2}/{total}")
+            console.print(f"[bold]{server1_name}[/bold]: {passed}/{total}    [bold]{server2_name}[/bold]: {passed2}/{total}")
             if lc:
-                lc.print(f"{suite['server']}: {passed}/{total}    {compare}: {passed2}/{total}")
+                lc.print(f"{server1_name}: {passed}/{total}    {server2_name}: {passed2}/{total}")
 
-            print_results(scored, suite["server"], verbose=verbose, log_console=lc)
+            print_results(scored, server1_name, verbose=verbose, log_console=lc)
             console.print(f"[dim]Saved: {results_file}[/dim]")
             if lc:
                 lc.print(f"Saved: {results_file}")
 
-            print_results(scored2, compare, verbose=verbose, log_console=lc2)
+            print_results(scored2, server2_name, verbose=verbose, log_console=lc2)
             console.print(f"[dim]Saved: {results_file2}[/dim]")
             if lc2:
                 lc2.print(f"Saved: {results_file2}")
@@ -363,7 +402,7 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
     else:
         if log_dir is not None:
             _cfg = load_config()
-            _stem = Path(suite["server"]).stem
+            _stem = suite["server"]["name"]
             _ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
             _model = get_agent_model(_cfg)
             _rdir = get_results_dir(_cfg)
@@ -376,7 +415,7 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
                 run_suite(suite, tasks_file, verbose=verbose, log_console=lc, run_id=pre_run_id)
             )
             scored = [score_task(r) for r in results]
-            print_results(scored, suite["server"], verbose=verbose, log_console=lc)
+            print_results(scored, suite["server"]["name"], verbose=verbose, log_console=lc)
             console.print(f"[dim]Saved: {results_file}[/dim]")
             if lc:
                 lc.print(f"Saved: {results_file}")
@@ -465,36 +504,24 @@ def report(results_file: str, verbose: bool, log_dir: str | None):
 
 @cli.command()
 @click.argument("tasks_file")
-@click.option("--server", default=None, help="Override the server from the task file")
-@click.option("--ignore-tool-names", is_flag=True, default=False, help="Skip tool name checks")
-@click.option("--compare", default=None, help="Second server to run tasks against for comparison")
+@click.option("--server", default=None, help="Override the server (server name from servers.yaml)")
+@click.option("--compare", default=None, help="Second server name (from servers.yaml) to run tasks against for comparison")
 @click.option("--judge-model", default=None, help="Override judge model from config")
 @click.option("--verbose", is_flag=True, default=False, help="Show MCP server output and full answers")
 @click.option(
     "--log", "log_dir", default=None, is_flag=False, flag_value="",
     metavar="[DIR]", help="Write plain-text log to DIR (default: alongside results)",
 )
-def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, judge_model: str, verbose: bool, log_dir: str | None):
+def full(tasks_file: str, server: str, compare: str, judge_model: str, verbose: bool, log_dir: str | None):
     """Run eval, then judge, then report in sequence."""
     config = load_config()
-    suite = _load_tasks_or_exit(tasks_file)
-
-    if server:
-        suite["server"] = server
-
-    if ignore_tool_names:
-        for task in suite["tasks"]:
-            task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
+    suite = _load_tasks_or_exit(tasks_file, server_override=server)
 
     pre_run_id = secrets.token_hex(2) if log_dir is not None else None
 
     results2_file = None
     if compare:
-        suite2 = copy.deepcopy(suite)
-        suite2["server"] = compare
-        if ignore_tool_names:
-            for task in suite2["tasks"]:
-                task["expect"].get("deterministic", {}).pop("tools_called_includes", None)
+        suite2 = _load_tasks_or_exit(tasks_file, server_override=compare)
 
         pre_run_id2 = secrets.token_hex(2) if log_dir is not None else None
 
@@ -502,8 +529,8 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
             _ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
             _model = get_agent_model(config)
             _rdir = get_results_dir(config)
-            _exp1 = str(Path(_rdir) / f"{Path(suite['server']).stem}_{_ts}_{_model}_{pre_run_id}.json")
-            _exp2 = str(Path(_rdir) / f"{Path(suite2['server']).stem}_{_ts}_{_model}_{pre_run_id2}.json")
+            _exp1 = str(Path(_rdir) / f"{suite['server']['name']}_{_ts}_{_model}_{pre_run_id}.json")
+            _exp2 = str(Path(_rdir) / f"{suite2['server']['name']}_{_ts}_{_model}_{pre_run_id2}.json")
             lc, fp = _make_log_console(log_dir, _exp1)
             lc2, fp2 = _make_log_console(log_dir, _exp2)
         else:
@@ -521,7 +548,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
         scored2 = [score_task(r) for r in results2]
     else:
         if log_dir is not None:
-            _stem = Path(suite["server"]).stem
+            _stem = suite["server"]["name"]
             _ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
             _model = get_agent_model(config)
             _rdir = get_results_dir(config)
@@ -535,16 +562,19 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
         )
         scored = [score_task(r) for r in results]
 
+    server1_name = suite["server"]["name"]
+
     try:
         if compare and results2_file:
-            print_compare_table(scored, scored2, suite["server"], compare, log_console=lc)
+            server2_name = suite2["server"]["name"]
+            print_compare_table(scored, scored2, server1_name, server2_name, log_console=lc)
 
             passed = sum(1 for r in scored if r["status"] == "PASS")
             passed2 = sum(1 for r in scored2 if r["status"] == "PASS")
             total = len(scored)
-            console.print(f"[bold]{suite['server']}[/bold]: {passed}/{total}    [bold]{compare}[/bold]: {passed2}/{total}")
+            console.print(f"[bold]{server1_name}[/bold]: {passed}/{total}    [bold]{server2_name}[/bold]: {passed2}/{total}")
             if lc:
-                lc.print(f"{suite['server']}: {passed}/{total}    {compare}: {passed2}/{total}")
+                lc.print(f"{server1_name}: {passed}/{total}    {server2_name}: {passed2}/{total}")
             console.print(f"[dim]Saved: {results_file}[/dim]")
             if lc:
                 lc.print(f"Saved: {results_file}")
@@ -560,7 +590,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
             judge_data = json.load(f)
         verdicts_by_id = {v["id"]: v["verdict"] for v in judge_data["verdicts"]}
 
-        print_results(scored, suite["server"], verbose=verbose, verdicts=verdicts_by_id, log_console=lc)
+        print_results(scored, server1_name, verbose=verbose, verdicts=verdicts_by_id, log_console=lc)
         print_verdicts(judge_data["verdicts"], j_model, log_console=lc)
         console.print(f"[dim]Saved: {judge_file}[/dim]")
         if lc:
@@ -572,7 +602,7 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
                 judge_data2 = json.load(f)
             verdicts2_by_id = {v["id"]: v["verdict"] for v in judge_data2["verdicts"]}
 
-            print_results(scored2, compare, verbose=verbose, verdicts=verdicts2_by_id, log_console=lc2)
+            print_results(scored2, server2_name, verbose=verbose, verdicts=verdicts2_by_id, log_console=lc2)
             print_verdicts(judge_data2["verdicts"], j_model, log_console=lc2)
             console.print(f"[dim]Saved: {judge_file2}[/dim]")
             if lc2:

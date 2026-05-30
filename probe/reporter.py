@@ -40,10 +40,10 @@ def _consistency_cell(consistency_score: float) -> Text:
     label = f"{pct}%"
     if consistency_score >= 1.0:
         return Text(label, style="bold green")
-    elif consistency_score <= 0.0:
-        return Text(label, style="bold red")
-    else:
+    elif consistency_score > 0.5:
         return Text(label, style="bold yellow")
+    else:
+        return Text(label, style="bold red")
 
 
 def _pro_cell(pro_score, task_id: str, verdicts: dict | None) -> Text:
@@ -136,6 +136,14 @@ def print_results(
         table.add_row(*row)
 
     _print(table)
+
+    for r in scored:
+        cs = r.get("consistency_score")
+        if cs is not None and cs < 0.7:
+            pct = round(cs * 100)
+            _print(
+                f"  [bold yellow]⚠ {r['id']}: consistency {pct}% — tool description may be too vague[/bold yellow]"
+            )
 
     if verbose:
         for r in scored:

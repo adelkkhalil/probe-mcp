@@ -1,0 +1,138 @@
+{
+  "meta": {
+    "server": "mcp_server_raw.py",
+    "tasks_file": "tasks/northwind.yaml",
+    "agent_model": "claude-haiku-4-5",
+    "timestamp": "2026-05-30T15:35:58",
+    "run_id": "2b25"
+  },
+  "results": [
+    {
+      "id": "customers_by_country",
+      "prompt": "Find me all customers from Germany",
+      "trace": [
+        {
+          "tool": "raw_get_customers",
+          "params": {
+            "country": "Germany"
+          },
+          "error": false
+        }
+      ],
+      "answer": "I found 11 customers from Germany. Here they are:\n\n1. **Alfreds Futterkiste** (ALFKI) - Berlin\n   - Contact: Maria Anders, Sales Representative\n\n2. **Blauer See Delikatessen** (BLAUS) - Mannheim\n   - Contact: Hanna Moos, Sales Representative\n\n3. **Drachenblut Delikatessen** (DRACD) - Aachen\n   - Contact: Sven Ottlieb, Order Administrator\n\n4. **Frankenversand** (FRANK) - M\u00fcnchen\n   - Contact: Peter Franken, Marketing Manager\n\n5. **K\u00f6niglich Essen** (KOENE) - Brandenburg\n   - Contact: Philip Cramer, Sales Associate\n\n6. **Lehmanns Marktstand** (LEHMS) - Frankfurt a.M.\n   - Contact: Renate Messner, Sales Representative\n\n7. **Morgenstern Gesundkost** (MORGK) - Leipzig\n   - Contact: Alexander Feuer, Marketing Assistant\n\n8. **Ottilies K\u00e4seladen** (OTTIK) - K\u00f6ln\n   - Contact: Henriette Pfalzheim, Owner\n\n9. **QUICK-Stop** (QUICK) - Cunewalde\n   - Contact: Horst Kloss, Accounting Manager\n\n10. **Toms Spezialit\u00e4ten** (TOMSP) - M\u00fcnster\n    - Contact: Karin Josephs, Marketing Manager\n\n11. **Die Wandernde Kuh** (WANDK) - Stuttgart\n    - Contact: Rita M\u00fcller, Sales Representative",
+      "expect": {
+        "deterministic": {
+          "tool_called_count": 1,
+          "no_error": true
+        },
+        "probabilistic": {
+          "judge": true
+        }
+      }
+    },
+    {
+      "id": "orders_by_shipper",
+      "prompt": "Find me orders for customer ALFKI shipped via express courier",
+      "trace": [
+        {
+          "tool": "raw_get_shippers",
+          "params": {},
+          "error": false
+        },
+        {
+          "tool": "raw_get_orders",
+          "params": {
+            "customer_id": "ALFKI",
+            "ship_via": 1
+          },
+          "error": false
+        }
+      ],
+      "answer": "Perfect! I found **54 orders** for customer ALFKI shipped via Speedy Express (express courier). Here's a summary:\n\n**Orders for Customer ALFKI via Speedy Express:**\n\n| Order ID | Order Date | Shipped Date | Freight | Ship City | Ship Country |\n|----------|-----------|--------------|---------|-----------|--------------|\n| 10643 | 2017-08-25 | 2017-09-02 | $19.50 | Berlin | Germany |\n| 10702 | 2017-10-13 | 2017-10-21 | $15.25 | Berlin | Germany |\n| 10952 | 2018-03-16 | 2018-03-24 | $14.50 | Berlin | Germany |\n| 11011 | 2018-04-09 | 2018-04-13 | $25.00 | Berlin | Germany |\n| 11658 | 2019-03-10 | 2019-03-10 | $49.00 | San Crist\u00f3bal | Venezuela |\n| 11717 | 2014-04-29 | 2014-05-02 | $17.50 | Mannheim | Germany |\n| 11789 | 2013-01-05 | 2013-01-06 | $272.50 | Reggio Emilia | Italy |\n| 11798 | 2014-12-08 | 2014-12-19 | $49.75 | M\u00e9xico D.F. | Mexico |\n| 11819 | 2019-05-30 | 2019-06-06 | $253.00 | Lisboa | Portugal |\n| 11863 | 2014-07-07 | 2014-07-14 | $312.75 | M\u00e9xico D.F. | Mexico |\n\n*(and 44 more orders)*\n\n**Key Statistics:**\n- **Total Orders:** 54\n- **Shipper:** Speedy Express (ShipperID: 1)\n- **Freight Costs Range:** From $11.00 to $521.50\n- **Customer Name:** Alfreds Futterkiste\n- **Shipping Locations:** Multiple international destinations across Europe, North America, South America, and Central America\n\nWould you like more details about specific orders, such as the complete order list, product details from specific orders, or any other information?",
+      "expect": {
+        "deterministic": {
+          "max_calls": 3,
+          "answer_includes": "Speedy Express",
+          "tools_called_sequence": [
+            "shippers",
+            "orders"
+          ]
+        },
+        "probabilistic": {
+          "judge": true
+        }
+      }
+    },
+    {
+      "id": "overdue_orders",
+      "prompt": "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?",
+      "trace": [
+        {
+          "tool": "raw_get_orders",
+          "params": {},
+          "error": false
+        }
+      ],
+      "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215731 tokens > 200000 maximum'}, 'request_id': 'req_011CbYge3iQ5VcvW3Ut9hieG'}",
+      "expect": {
+        "deterministic": {
+          "max_calls": 2
+        },
+        "probabilistic": {
+          "judge": true
+        }
+      },
+      "trials": [
+        {
+          "trace": [
+            {
+              "tool": "raw_get_orders",
+              "params": {},
+              "error": false
+            }
+          ],
+          "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215731 tokens > 200000 maximum'}, 'request_id': 'req_011CbYge3iQ5VcvW3Ut9hieG'}"
+        },
+        {
+          "trace": [
+            {
+              "tool": "raw_get_orders",
+              "params": {},
+              "error": false
+            }
+          ],
+          "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215724 tokens > 200000 maximum'}, 'request_id': 'req_011CbYgeFDhWN7S6QdbyBgwn'}"
+        },
+        {
+          "trace": [],
+          "answer": "I don't have a function available that can directly retrieve order dates and shipping information to determine which orders are overdue. \n\nTo answer your question properly, I would need access to a function that provides:\n- The required/due date for each order\n- The shipped date (or whether an order has shipped)\n- A way to filter or identify orders where the required date has passed but the order hasn't shipped yet\n\nThe available functions I have can retrieve orders and their details, but they don't include date information in their descriptions, so I cannot definitively identify overdue orders.\n\nCould you provide more information about:\n1. How the order dates are stored in your system?\n2. Whether there's a specific field I should be looking at to determine if an order is overdue?\n3. Or would you like me to retrieve all orders and their details so you can review them manually?"
+        }
+      ]
+    },
+    {
+      "id": "top_employee",
+      "prompt": "Who is our top performing employee by number of orders handled?",
+      "trace": [
+        {
+          "tool": "raw_get_employees",
+          "params": {},
+          "error": false
+        },
+        {
+          "tool": "raw_get_orders",
+          "params": {},
+          "error": false
+        }
+      ],
+      "answer": "ERROR: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'prompt is too long: 215122 tokens > 200000 maximum'}, 'request_id': 'req_011CbYgej13G87PiWFW4vtnv'}",
+      "expect": {
+        "deterministic": {
+          "max_calls": 5
+        },
+        "probabilistic": {
+          "judge": true
+        }
+      }
+    }
+  ]
+}

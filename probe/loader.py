@@ -53,6 +53,11 @@ def load_tasks(path: str) -> dict:
         if "expect" not in task or not isinstance(task["expect"], dict):
             raise ValueError(f"{where}: missing dict 'expect'")
 
+        if "trials" in task:
+            value = task["trials"]
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{where}: 'trials' must be a positive integer")
+
         expect = task["expect"]
 
         if "deterministic" in expect and not isinstance(expect["deterministic"], dict):
@@ -128,13 +133,6 @@ def load_tasks(path: str) -> dict:
                 raise ValueError(
                     f"{where}: 'expect.deterministic.tools_called_sequence' must be a list of strings"
                 )
-        if "trials" in det:
-            value = det["trials"]
-            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-                raise ValueError(
-                    f"{where}: 'expect.deterministic.trials' must be a positive integer"
-                )
-
         _LEGACY_KEYS = {"tools_called_includes", "max_calls", "answer_includes"}
         flat_keys = _LEGACY_KEYS & set(expect)
         if flat_keys:

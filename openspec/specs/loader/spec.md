@@ -294,22 +294,27 @@ If a task's `expect.deterministic` contains `tools_called_sequence`, the loader 
 
 ### Requirement: trials must be a positive integer when present
 
-If a task's `expect.deterministic` contains `trials`, the loader SHALL raise `ValueError` if it is not a positive integer greater than zero (booleans and floats are explicitly rejected).
+If a task contains a top-level `trials` field (alongside `id`, `prompt`, and `expect`), the loader SHALL raise `ValueError` if it is not a positive integer greater than zero (booleans and floats are explicitly rejected). When absent, the effective default is `1`.
 
 #### Scenario: Zero trials raises ValueError
 
-- **WHEN** `expect.deterministic.trials` is `0`
-- **THEN** `ValueError` is raised for that task
+- **WHEN** a task has `trials: 0`
+- **THEN** `ValueError` is raised identifying the task by id
 
 #### Scenario: Non-integer trials raises ValueError
 
-- **WHEN** `expect.deterministic.trials` is `1.5`
+- **WHEN** a task has `trials: 1.5`
 - **THEN** `ValueError` is raised for that task
 
 #### Scenario: Valid trials passes validation
 
-- **WHEN** `expect.deterministic.trials` is `3`
+- **WHEN** a task has `trials: 3`
 - **THEN** the task loads successfully
+
+#### Scenario: Absent trials defaults to 1
+
+- **WHEN** a task has no `trials` key
+- **THEN** the task loads successfully and the runner treats it as a single run
 
 ---
 

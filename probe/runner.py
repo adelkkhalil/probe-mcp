@@ -141,7 +141,7 @@ async def run_suite(
             tools = await get_tools(session)
 
             for task in suite["tasks"]:
-                trials_count = task["expect"].get("deterministic", {}).get("trials", 1)
+                trials_count = task.get("trials", 1)
                 _console.print(f"Running: {task['id']}")
                 if log_console:
                     log_console.print(f"Running: {task['id']}")

@@ -24,6 +24,7 @@ tasks:
 
   - id: overdue_orders
     prompt: "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?"
+    trials: 3
     expect:
       deterministic:
         tools_called_includes: [orders]

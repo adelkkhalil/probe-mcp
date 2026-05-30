@@ -1,0 +1,18 @@
+Running: customers_by_country
+Running: orders_by_shipper
+Running: overdue_orders
+Running: top_employee
+───────────────────────────────────────────────────────── mcp_server_semantic.py ─────────────────────────────────────────────────────────
+
+Results: 4/4 passed
+
+╭──────────────────────┬────────┬─────┬─────┬───────┬───────────────────────────────────────────────────────────────────────────────────╮
+│ Task                 │ Status │ Det │ Pro │ Calls │ Answer                                                                            │
+├──────────────────────┼────────┼─────┼─────┼───────┼───────────────────────────────────────────────────────────────────────────────────┤
+│ customers_by_country │ ✓ PASS │ 3/3 │ —   │     1 │ I found 11 customers from Germany in the Northwind database:  1. **Alfreds...     │
+│ orders_by_shipper    │ ✓ PASS │ 5/5 │ —   │     2 │ Perfect! I found **51 orders** for customer ALFKI (Alfreds Futterkiste) that...   │
+│ overdue_orders       │ ✓ PASS │ 2/2 │ —   │     1 │ Based on the order data retrieved, I can now identify overdue orders. An order... │
+│ top_employee         │ ✓ PASS │ 3/3 │ —   │     3 │ Based on the data I've retrieved, let me count the orders for each employee: ...  │
+╰──────────────────────┴────────┴─────┴─────┴───────┴───────────────────────────────────────────────────────────────────────────────────╯
+
+Saved: results/mcp_server_semantic_2026-05-30_15-14_claude-haiku-4-5_f578.json

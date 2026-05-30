@@ -1,0 +1,137 @@
+{
+  "meta": {
+    "server": "mcp_server_semantic.py",
+    "tasks_file": "tasks/northwind.yaml",
+    "agent_model": "claude-haiku-4-5",
+    "timestamp": "2026-05-30T15:14:40",
+    "run_id": "f578"
+  },
+  "results": [
+    {
+      "id": "customers_by_country",
+      "prompt": "Find me all customers from Germany",
+      "trace": [
+        {
+          "tool": "customers_by_country",
+          "params": {
+            "country": "Germany"
+          },
+          "error": false
+        }
+      ],
+      "answer": "I found 11 customers from Germany in the Northwind database:\n\n1. **Alfreds Futterkiste** (ALFKI)\n   - Contact: Maria Anders, Sales Representative\n   - City: Berlin\n   - Phone: 030-0074321\n\n2. **Blauer See Delikatessen** (BLAUS)\n   - Contact: Hanna Moos, Sales Representative\n   - City: Mannheim\n   - Phone: 0621-08460\n\n3. **Drachenblut Delikatessen** (DRACD)\n   - Contact: Sven Ottlieb, Order Administrator\n   - City: Aachen\n   - Phone: 0241-039123\n\n4. **Frankenversand** (FRANK)\n   - Contact: Peter Franken, Marketing Manager\n   - City: M\u00fcnchen\n   - Phone: 089-0877310\n\n5. **K\u00f6niglich Essen** (KOENE)\n   - Contact: Philip Cramer, Sales Associate\n   - City: Brandenburg\n   - Phone: 0555-09876\n\n6. **Lehmanns Marktstand** (LEHMS)\n   - Contact: Renate Messner, Sales Representative\n   - City: Frankfurt a.M.\n   - Phone: 069-0245984\n\n7. **Morgenstern Gesundkost** (MORGK)\n   - Contact: Alexander Feuer, Marketing Assistant\n   - City: Leipzig\n   - Phone: 0342-023176\n\n8. **Ottilies K\u00e4seladen** (OTTIK)\n   - Contact: Henriette Pfalzheim, Owner\n   - City: K\u00f6ln\n   - Phone: 0221-0644327\n\n9. **QUICK-Stop** (QUICK)\n   - Contact: Horst Kloss, Accounting Manager\n   - City: Cunewalde\n   - Phone: 0372-035188\n\n10. **Toms Spezialit\u00e4ten** (TOMSP)\n    - Contact: Karin Josephs, Marketing Manager\n    - City: M\u00fcnster\n    - Phone: 0251-031259\n\n11. **Die Wandernde Kuh** (WANDK)\n    - Contact: Rita M\u00fcller, Sales Representative\n    - City: Stuttgart\n    - Phone: 0711-020361",
+      "expect": {
+        "deterministic": {
+          "tools_called_includes": [
+            "customers_by_country"
+          ],
+          "tool_called_count": 1,
+          "no_error": true
+        },
+        "probabilistic": {
+          "judge": true
+        }
+      }
+    },
+    {
+      "id": "orders_by_shipper",
+      "prompt": "Find me orders for customer ALFKI shipped via express courier",
+      "trace": [
+        {
+          "tool": "shippers",
+          "params": {},
+          "error": false
+        },
+        {
+          "tool": "orders",
+          "params": {
+            "customer_id": "ALFKI",
+            "ship_via": 1
+          },
+          "error": false
+        }
+      ],
+      "answer": "Perfect! I found **51 orders** for customer ALFKI (Alfreds Futterkiste) that were shipped via **Speedy Express**. Here's a summary:\n\n**Shipping Details:**\n- **Shipper:** Speedy Express (ShipperID: 1)\n- **Customer:** ALFKI (Alfreds Futterkiste)\n- **Total Orders:** 51\n\n**Sample of Recent Orders:**\n\n| Order ID | Order Date | Shipped Date | Freight | Ship To |\n|----------|-----------|--------------|---------|---------|\n| 21691 | 2019-04-07 | 2019-04-09 | $102.75 | Let's Stop N Shop, San Francisco, USA |\n| 21415 | 2019-07-17 | 2019-07-24 | $384.75 | HILARION-Abastos, San Crist\u00f3bal, Venezuela |\n| 20318 | 2020-09-30 | 2020-10-07 | $27.75 | Richter Supermarkt, Gen\u00e8ve, Switzerland |\n| 19804 | 2022-07-30 | 2022-08-03 | $311.00 | Supr\u00eames d\u00e9lices, Charleroi, Belgium |\n| 19393 | 2018-06-15 | 2018-06-22 | $428.00 | Victuailles en stock, Lyon, France |\n| 19344 | 2020-05-16 | 2020-05-17 | $394.50 | Eastern Connection, London, UK |\n| 19333 | 2016-06-24 | 2016-07-18 | $200.25 | Maison Dewey, Bruxelles, Belgium |\n\nThe orders span across multiple years and ship to various international locations, with freight charges ranging from $15.25 to $521.50. Would you like more details about any specific order?",
+      "expect": {
+        "deterministic": {
+          "tools_called_includes": [
+            "shippers",
+            "orders"
+          ],
+          "max_calls": 3,
+          "answer_includes": "Speedy Express",
+          "tools_called_sequence": [
+            "shippers",
+            "orders"
+          ]
+        },
+        "probabilistic": {
+          "judge": true
+        }
+      }
+    },
+    {
+      "id": "overdue_orders",
+      "prompt": "Which orders are overdue, meaning the required date has passed but they haven't shipped yet?",
+      "trace": [
+        {
+          "tool": "orders",
+          "params": {
+            "limit": 200
+          },
+          "error": false
+        }
+      ],
+      "answer": "Based on the order data retrieved, I can now identify overdue orders. An order is overdue if:\n1. The RequiredDate has passed (is in the past relative to today)\n2. The order has NOT been shipped (ShippedDate is NULL/null)\n\nLooking through the data, I notice that all orders in this dataset have been shipped (all have ShippedDate values). However, there are no orders with a NULL ShippedDate, which means there are **no orders that are currently overdue** in the traditional sense (where an order hasn't shipped by its required date).\n\nHowever, I should note that:\n- The data appears to be from 2016-2017, so all these orders are from the past and have already been completed\n- If we were to check against a current date, we'd need to identify orders where:\n  - **ShippedDate is NULL** (hasn't shipped yet)\n  - **RequiredDate < today's date** (the deadline has passed)\n\n**To properly answer this question, I would need to know what today's date is in your business context.** Could you clarify:\n\n1. What is the current date you're checking against?\n2. Or are you looking for orders that were overdue at the time of shipping (where ShippedDate was after RequiredDate)?\n\nIf you'd like, I can identify orders that shipped **late** (after their required date), even though they eventually shipped. Would that be helpful?",
+      "expect": {
+        "deterministic": {
+          "tools_called_includes": [
+            "orders"
+          ],
+          "max_calls": 2
+        },
+        "probabilistic": {
+          "judge": true
+        }
+      }
+    },
+    {
+      "id": "top_employee",
+      "prompt": "Who is our top performing employee by number of orders handled?",
+      "trace": [
+        {
+          "tool": "employees",
+          "params": {},
+          "error": false
+        },
+        {
+          "tool": "orders",
+          "params": {
+            "limit": 200
+          },
+          "error": false
+        },
+        {
+          "tool": "orders",
+          "params": {
+            "limit": 200
+          },
+          "error": false
+        }
+      ],
+      "answer": "Based on the data I've retrieved, let me count the orders for each employee:\n\n**Order Count by Employee ID:**\n\n- **Employee 1 (Nancy Davolio):** 27 orders\n- **Employee 2 (Andrew Fuller):** 17 orders\n- **Employee 3 (Janet Leverling):** 31 orders\n- **Employee 4 (Margaret Peacock):** 42 orders \u2b50 **TOP PERFORMER**\n- **Employee 5 (Steven Buchanan):** 17 orders\n- **Employee 6 (Michael Suyama):** 20 orders\n- **Employee 7 (Robert King):** 15 orders\n- **Employee 8 (Laura Callahan):** 27 orders\n- **Employee 9 (Anne Dodsworth):** 6 orders\n\n## **Our top performing employee by number of orders handled is:**\n\n**Margaret Peacock (Employee ID 4)** with **42 orders** handled.\n\nMargaret is a Sales Representative who joined the company on May 3, 2013. She reports to Andrew Fuller (Vice President, Sales) and has significantly outpaced all other team members in terms of order volume.",
+      "expect": {
+        "deterministic": {
+          "tools_called_includes": [
+            "employees",
+            "orders"
+          ],
+          "max_calls": 5
+        },
+        "probabilistic": {
+          "judge": true
+        }
+      }
+    }
+  ]
+}

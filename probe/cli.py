@@ -313,18 +313,29 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
 
         pre_run_id2 = secrets.token_hex(2) if log_dir is not None else None
 
+        if log_dir is not None:
+            _cfg = load_config()
+            _ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            _model = get_agent_model(_cfg)
+            _rdir = get_results_dir(_cfg)
+            _exp1 = str(Path(_rdir) / f"{Path(suite['server']).stem}_{_ts}_{_model}_{pre_run_id}.json")
+            _exp2 = str(Path(_rdir) / f"{Path(suite2['server']).stem}_{_ts}_{_model}_{pre_run_id2}.json")
+            lc, fp = _make_log_console(log_dir, _exp1)
+            lc2, fp2 = _make_log_console(log_dir, _exp2)
+        else:
+            lc, fp = None, None
+            lc2, fp2 = None, None
+
         async def _run_both_eval():
             return await asyncio.gather(
-                run_suite(suite, tasks_file, verbose=verbose, run_id=pre_run_id),
-                run_suite(suite2, tasks_file, verbose=verbose, run_id=pre_run_id2),
+                run_suite(suite, tasks_file, verbose=verbose, log_console=lc, run_id=pre_run_id),
+                run_suite(suite2, tasks_file, verbose=verbose, log_console=lc2, run_id=pre_run_id2),
             )
 
         (results, results_file), (results2, results_file2) = _run_async(_run_both_eval())
         scored = [score_task(r) for r in results]
         scored2 = [score_task(r) for r in results2]
 
-        lc, fp = _make_log_console(log_dir, results_file)
-        lc2, fp2 = _make_log_console(log_dir, results_file2)
         try:
             print_compare_table(scored, scored2, suite["server"], compare, log_console=lc)
 
@@ -350,13 +361,21 @@ def eval(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ve
             if fp2:
                 fp2.close()
     else:
-        results, results_file = _run_async(
-            run_suite(suite, tasks_file, verbose=verbose, run_id=pre_run_id)
-        )
-        scored = [score_task(r) for r in results]
-
-        lc, fp = _make_log_console(log_dir, results_file)
+        if log_dir is not None:
+            _cfg = load_config()
+            _stem = Path(suite["server"]).stem
+            _ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            _model = get_agent_model(_cfg)
+            _rdir = get_results_dir(_cfg)
+            _exp = str(Path(_rdir) / f"{_stem}_{_ts}_{_model}_{pre_run_id}.json")
+            lc, fp = _make_log_console(log_dir, _exp)
+        else:
+            lc, fp = None, None
         try:
+            results, results_file = _run_async(
+                run_suite(suite, tasks_file, verbose=verbose, log_console=lc, run_id=pre_run_id)
+            )
+            scored = [score_task(r) for r in results]
             print_results(scored, suite["server"], verbose=verbose, log_console=lc)
             console.print(f"[dim]Saved: {results_file}[/dim]")
             if lc:
@@ -479,25 +498,42 @@ def full(tasks_file: str, server: str, ignore_tool_names: bool, compare: str, ju
 
         pre_run_id2 = secrets.token_hex(2) if log_dir is not None else None
 
+        if log_dir is not None:
+            _ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            _model = get_agent_model(config)
+            _rdir = get_results_dir(config)
+            _exp1 = str(Path(_rdir) / f"{Path(suite['server']).stem}_{_ts}_{_model}_{pre_run_id}.json")
+            _exp2 = str(Path(_rdir) / f"{Path(suite2['server']).stem}_{_ts}_{_model}_{pre_run_id2}.json")
+            lc, fp = _make_log_console(log_dir, _exp1)
+            lc2, fp2 = _make_log_console(log_dir, _exp2)
+        else:
+            lc, fp = None, None
+            lc2, fp2 = None, None
+
         async def _run_both_full():
             return await asyncio.gather(
-                run_suite(suite, tasks_file, verbose=verbose, run_id=pre_run_id),
-                run_suite(suite2, tasks_file, verbose=verbose, run_id=pre_run_id2),
+                run_suite(suite, tasks_file, verbose=verbose, log_console=lc, run_id=pre_run_id),
+                run_suite(suite2, tasks_file, verbose=verbose, log_console=lc2, run_id=pre_run_id2),
             )
 
         (results, results_file), (results2, results2_file) = _run_async(_run_both_full())
         scored = [score_task(r) for r in results]
         scored2 = [score_task(r) for r in results2]
-
-        lc, fp = _make_log_console(log_dir, results_file)
-        lc2, fp2 = _make_log_console(log_dir, results2_file)
     else:
+        if log_dir is not None:
+            _stem = Path(suite["server"]).stem
+            _ts = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            _model = get_agent_model(config)
+            _rdir = get_results_dir(config)
+            _exp = str(Path(_rdir) / f"{_stem}_{_ts}_{_model}_{pre_run_id}.json")
+            lc, fp = _make_log_console(log_dir, _exp)
+        else:
+            lc, fp = None, None
+        lc2, fp2 = None, None
         results, results_file = _run_async(
-            run_suite(suite, tasks_file, verbose=verbose, run_id=pre_run_id)
+            run_suite(suite, tasks_file, verbose=verbose, log_console=lc, run_id=pre_run_id)
         )
         scored = [score_task(r) for r in results]
-        lc, fp = _make_log_console(log_dir, results_file)
-        lc2, fp2 = None, None
 
     try:
         if compare and results2_file:

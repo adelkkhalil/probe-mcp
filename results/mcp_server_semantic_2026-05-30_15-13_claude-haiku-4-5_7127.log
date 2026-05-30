@@ -1,0 +1,18 @@
+Running: customers_by_country
+Running: orders_by_shipper
+Running: overdue_orders
+Running: top_employee
+───────────────────────────────────────────────────────── mcp_server_semantic.py ─────────────────────────────────────────────────────────
+
+Results: 0/4 passed
+
+╭──────────────────────┬────────┬─────┬─────┬───────┬───────────────────────────────────────────────────────────────────────────────────╮
+│ Task                 │ Status │ Det │ Pro │ Calls │ Answer                                                                            │
+├──────────────────────┼────────┼─────┼─────┼───────┼───────────────────────────────────────────────────────────────────────────────────┤
+│ customers_by_country │ ✗ FAIL │ 0/0 │ —   │     0 │ "Could not resolve authentication method. Expected one of api_key, auth_token,... │
+│ orders_by_shipper    │ ✗ FAIL │ 0/0 │ —   │     0 │ "Could not resolve authentication method. Expected one of api_key, auth_token,... │
+│ overdue_orders       │ ✗ FAIL │ 0/0 │ —   │     0 │ "Could not resolve authentication method. Expected one of api_key, auth_token,... │
+│ top_employee         │ ✗ FAIL │ 0/0 │ —   │     0 │ "Could not resolve authentication method. Expected one of api_key, auth_token,... │
+╰──────────────────────┴────────┴─────┴─────┴───────┴───────────────────────────────────────────────────────────────────────────────────╯
+
+Saved: results/mcp_server_semantic_2026-05-30_15-13_claude-haiku-4-5_7127.json
